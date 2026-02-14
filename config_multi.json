@@ -1,0 +1,29 @@
+{
+    "excel_path": "http://mysql831.umbler.com:41890/",
+    "fgts_digital": {
+        "dest_path": "",
+        "active": false,
+        "interval": "",
+        "next_run": null
+    },
+    "fgts_digital_site": {
+        "dest_path": "V:/6-DEPT PESSOAL/5. FGTS DIGITAL/G6/012026",
+        "active": false,
+        "interval": "",
+        "next_run": null
+    },
+    "onvio": {
+        "dest_path": "",
+        "active": false,
+        "interval": "0",
+        "next_run": null
+    },
+    "mysql_config": {
+        "host": "mysql831.umbler.com",
+        "port": "41890",
+        "user": "vexmabit",
+        "pass": "vexmabit10",
+        "database": "vex"
+    },
+    "consulta_mode": "mysql"
+}

@@ -1,0 +1,11 @@
+python-dotenv
+requests
+pandas
+openpyxl
+selenium
+webdriver-manager
+playwright
+pyautogui
+pyperclip
+pyinstaller
+pillow

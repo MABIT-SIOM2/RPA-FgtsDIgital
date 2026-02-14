@@ -1,0 +1,35 @@
+# Configuração do PyInstaller para criar executável
+
+# Nome do executável
+name: BotSimplesNacional
+
+# Arquivo principal
+script: gui.py
+
+# Ícone (opcional - você pode adicionar um .ico depois)
+# icon: icon.ico
+
+# Incluir arquivos de dados (imagens dos assets)
+datas:
+  - src/assets/*.png:src/assets
+
+# Modo: onefile (um único executável) ou onedir (pasta com dependências)
+onefile: true
+
+# Console: false para não mostrar janela de console
+console: false
+
+# Nome da pasta de build
+distpath: dist
+
+# Nome da pasta de trabalho
+workpath: build
+
+# Arquivos a incluir
+hiddenimports:
+  - pandas
+  - openpyxl
+  - pyautogui
+  - pyperclip
+  - PIL
+  - numpy

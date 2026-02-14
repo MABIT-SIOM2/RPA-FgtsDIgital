@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FGTS Digital - Dashboard de Empresas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar para Filtros -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <i data-lucide="layout-dashboard"></i>
+                <span>Gerenciador</span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <span class="section-title">Grupos</span>
+                    <ul id="group-list">
+                        <li class="active" data-group="all">
+                            <i data-lucide="layers"></i>
+                            <span>Todos os Grupos</span>
+                        </li>
+                        <!-- Grupos dinâmicos aqui -->
+                    </ul>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar"></div>
+                    <span>Mábit</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-left">
+                    <h1>Empresas</h1>
+                    <p>Gerencie e visualize os dados das empresas cadastradas.</p>
+                </div>
+                <div class="header-right">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="company-search" placeholder="Buscar por razão ou CNPJ...">
+                    </div>
+                    <input type="file" id="db-upload-input" accept=".xlsx" style="display: none;">
+
+                    <button class="btn btn-warning" id="btn-export-report" onclick="exportReport()">
+                        <i data-lucide="download"></i>
+                        Exportar Relatório
+                    </button>
+                    <button class="btn btn-success" id="btn-save-batch" onclick="saveBatchStatus()">
+                        <i data-lucide="save"></i>
+                        Gravar Seleção
+                    </button>
+
+                    <button class="btn btn-secondary" onclick="document.getElementById('db-upload-input').click()">
+                        <i data-lucide="upload"></i>
+                        Importar Planilha
+                    </button>
+                    <button class="btn btn-primary" onclick="loadCompanies()">
+                        <i data-lucide="refresh-cw"></i>
+                        Atualizar
+                    </button>
+                </div>
+            </header>
+
+            <!-- Grid de Estatísticas (Opcional) -->
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon blue">
+                        <i data-lucide="building-2"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span id="total-count">0</span>
+                        <p>Total de Empresas</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon yellow">
+                        <i data-lucide="clock"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span id="pending-count">0</span>
+                        <p>Pendentes</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tabela de Empresas -->
+            <section class="table-container card">
+                <table id="company-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="select-all-companies" title="Selecionar Todas">
+                            </th>
+                            <th>Código</th>
+                            <th>CNPJ</th>
+                            <th>Razão Social</th>
+                            <th>Grupo</th>
+                            <th>Comp. Inicial</th>
+                            <th>Comp. Final</th>
+                            <th>Valor FGTS (Base)</th>
+                            <th>FGTS 13º (Base)</th>
+                            <th>Consignado (Base)</th>
+                            <th>Total Base</th>
+                            <th>Guia FGTS</th>
+                            <th>Guia 13º</th>
+                            <th>Guia Consig.</th>
+                            <th>Total Guia</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="company-tbody">
+                        <!-- Conteúdo dinâmico -->
+                    </tbody>
+                </table>
+                <div id="loading-overlay" class="loading-overlay hidden">
+                    <div class="spinner"></div>
+                </div>
+            </section>
+
+            <!-- Controles de Paginação -->
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    Mostrando <span id="pagination-start">0</span> - <span id="pagination-end">0</span> de <span
+                        id="pagination-total-items">0</span> empresas
+                </div>
+                <div class="pagination-controls">
+                    <button id="prev-page" class="btn btn-secondary btn-pagination" disabled>
+                        <i data-lucide="chevron-left"></i>
+                        Anterior
+                    </button>
+                    <div id="page-numbers" class="page-numbers">
+                        <!-- Números de página aqui -->
+                    </div>
+                    <button id="next-page" class="btn btn-secondary btn-pagination" disabled>
+                        Próximo
+                        <i data-lucide="chevron-right"></i>
+                    </button>
+                </div>
+                <div class="pagination-size">
+                    <select id="items-per-page">
+                        <option value="10">10 por página</option>
+                        <option value="25">25 por página</option>
+                        <option value="50">50 por página</option>
+                        <option value="100">100 por página</option>
+                    </select>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de Edição -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content card">
+            <div class="modal-header">
+                <h2>Editar Empresa</h2>
+                <button class="btn-close" onclick="closeModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="edit-form">
+                <input type="hidden" id="edit-id">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="edit-razao">Razão Social</label>
+                        <input type="text" id="edit-razao" readonly class="readonly">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-cnpj">CNPJ</label>
+                        <input type="text" id="edit-cnpj" readonly class="readonly">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-comp-ini">Competência Inicial</label>
+                        <input type="text" id="edit-comp-ini" placeholder="MM/AAAA">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-comp-fim">Competência Final</label>
+                        <input type="text" id="edit-comp-fim" placeholder="MM/AAAA">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-base-fgts">Valor FGTS (Base)</label>
+                        <input type="text" id="edit-base-fgts">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-base-fgts13">FGTS 13º (Base)</label>
+                        <input type="text" id="edit-base-fgts13">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-base-consignado">Consignado (Base)</label>
+                        <input type="text" id="edit-base-consignado">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-base-total">Total Base</label>
+                        <input type="text" id="edit-base-total">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-fgts">Guia FGTS</label>
+                        <input type="text" id="edit-fgts" readonly class="readonly">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-fgts13">Guia FGTS 13º</label>
+                        <input type="text" id="edit-fgts13" readonly class="readonly">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-consignado">Guia Consignado</label>
+                        <input type="text" id="edit-consignado" readonly class="readonly">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-total">Total Guia</label>
+                        <input type="text" id="edit-total" readonly class="readonly">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>
