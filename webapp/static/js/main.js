@@ -193,20 +193,51 @@ function setupGlobalEvents() {
     if (selectAll) {
         selectAll.addEventListener('change', async (e) => {
             const checked = e.target.checked;
-            const status = checked ? 1 : 0;
             const visibleCheckboxes = document.querySelectorAll('.company-checkbox');
 
             // Atualiza visualmente primeiro
-            visibleCheckboxes.forEach(cb => cb.checked = checked);
-
-            // Atualiza no banco
-            const promises = Array.from(visibleCheckboxes).map(cb => {
-                const id = cb.getAttribute('data-id');
-                return updateCompanyStatus(id, status);
+            visibleCheckboxes.forEach(cb => {
+                const id = parseInt(cb.getAttribute('data-id'));
+                const company = allCompanies.find(c => c.empresa_id === id);
+                
+                // Só permite o toggle visual se não for Concluído (2)
+                // Ou se estamos desmarcando algo que estava Ativo (1)
+                if (company && company.status != 2) {
+                    cb.checked = checked;
+                }
             });
 
-            await Promise.all(promises);
-            loadCompanies(); // Recarrega para garantir sincronia
+            // Coleta IDs para atualizar no banco seguindo a mesma lógica de segurança
+            const idsToUpdate = [];
+            const targetStatus = checked ? 1 : 0;
+
+            visibleCheckboxes.forEach(cb => {
+                const id = parseInt(cb.getAttribute('data-id'));
+                const company = allCompanies.find(c => c.empresa_id === id);
+                if (!company) return;
+
+                if (checked) {
+                    // Marcando todos: Apenas Pendentes (0) ou Erros (3) vão para Ativo (1)
+                    if (company.status == 0 || company.status == 3) {
+                        idsToUpdate.push(id);
+                    }
+                } else {
+                    // Desmarcando todos: Apenas os que estão Ativos (1) voltam para Pendente (0)
+                    if (company.status == 1) {
+                        idsToUpdate.push(id);
+                    }
+                }
+            });
+
+            if (idsToUpdate.length > 0) {
+                await fetch('/api/batch-toggle-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: idsToUpdate, status: targetStatus })
+                });
+            }
+
+            loadCompanies(); 
         });
     }
 
@@ -265,14 +296,26 @@ async function saveBatchStatus() {
     const unselectedIds = [];
 
     checkboxes.forEach(cb => {
-        const id = cb.getAttribute('data-id');
-        if (cb.checked) {
-            selectedIds.push(id);
+        const id = parseInt(cb.getAttribute('data-id'));
+        const isChecked = cb.checked;
+        
+        // Localiza os dados atuais da empresa na memória
+        const company = allCompanies.find(c => c.empresa_id === id);
+        if (!company) return;
+
+        const currentStatus = parseInt(company.status);
+
+        if (isChecked) {
+            // Se foi marcado e não estava "A Consultar" (1)
+            // SÓ permite se for status 0 (Pendente) ou 3 (Erro)
+            if (currentStatus === 0 || currentStatus === 3) {
+                selectedIds.push(id);
+            }
         } else {
-            // Apenas tentamos desmarcar as que estavam com status "Ativo/A Consultar"
-            // mas simplificando, marcamos todas as não-checkadas como Pendente (0)
-            // exceto se já forem Concluídas/Erro (estas mantêm o status se não forem checkbox de toggle)
-            unselectedIds.push(id);
+            // Se foi desmarcado e estava "A Consultar" (1), manda voltar para Pendente (0)
+            if (currentStatus === 1) {
+                unselectedIds.push(id);
+            }
         }
     });
 
@@ -445,7 +488,11 @@ async function exportReport() {
     btn.innerHTML = '<i class="spinner-small"></i> Exportando...';
 
     try {
-        const response = await fetch('/api/export');
+        let exportUrl = '/api/export';
+        if (currentGroup && currentGroup !== 'all') {
+            exportUrl += `?group=${encodeURIComponent(currentGroup)}`;
+        }
+        const response = await fetch(exportUrl);
 
         if (!response.ok) {
             const result = await response.json();

@@ -6,6 +6,8 @@ import os
 import json
 import datetime
 import time
+import subprocess
+import webbrowser
 from src.bot_pyautogui import executar_consulta_em_lote, executar_consulta_individual, resource_path
 
 class BotGUI:
@@ -59,6 +61,7 @@ class BotGUI:
         self.is_running = False
         self.is_paused = False
         self.thread = None
+        self.server_process = None
         self.config_file = "config_multi.json"
         
         # Configurar interface
@@ -510,6 +513,11 @@ class BotGUI:
                                     font=("Arial", 10, "bold"), width=12, height=2)
         self.btn_salvar.pack(side=tk.LEFT, padx=5)
 
+        self.btn_web = tk.Button(control_frame, text="🌐 Abrir Dashboard", 
+                                  command=self.iniciar_servidor_web, bg="#9C27B0", fg="white",
+                                  font=("Arial", 10, "bold"), width=15, height=2)
+        self.btn_web.pack(side=tk.LEFT, padx=5)
+
         # --- LOG ---
         log_frame = tk.LabelFrame(main_frame, text="Log de Execução", padx=5, pady=5)
         log_frame.pack(fill=tk.BOTH, expand=True)
@@ -861,6 +869,38 @@ class BotGUI:
         self.root.after(0, _update)
 
         
+    def iniciar_servidor_web(self):
+        """Inicia o servidor Flask em uma thread separada e abre o navegador"""
+        def run_server():
+            try:
+                self.log("🌐 Iniciando servidor do dashboard (webapp/app.py)...")
+                # Caminho absoluto para o app.py
+                app_path = os.path.join(os.path.dirname(__file__), 'webapp', 'app.py')
+                
+                # Inicia o processo do servidor
+                # Usamos sys.executable para garantir que use o mesmo interpretador Python
+                self.server_process = subprocess.Popen(
+                    [sys.executable, app_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                self.log("✅ Servidor web iniciado! Aguardando 3 segundos para abrir o navegador...")
+                time.sleep(3)
+                webbrowser.open("http://127.0.0.1:5000")
+                
+                # Monitora a saída se necessário (opcional)
+                # stdout, stderr = self.server_process.communicate()
+                
+            except Exception as e:
+                self.log(f"❌ Erro ao iniciar servidor web: {e}")
+                messagebox.showerror("Erro", f"Não foi possível iniciar o servidor web:\n{e}")
+
+        # Executa em thread para não travar a GUI
+        thread_web = threading.Thread(target=run_server, daemon=True)
+        thread_web.start()
+
 def main():
     root = tk.Tk()
     app = BotGUI(root)

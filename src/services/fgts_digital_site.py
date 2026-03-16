@@ -402,7 +402,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         pos_entrar_certificado = localizar_btn_entrar_certificado()
         pyautogui.click(pos_entrar_certificado)
         
-        esperar(9, check_stop_callback)
+        esperar(15, check_stop_callback)
         verificar_parada(check_stop_callback)
 
         print("📝 Digitando o certificado digital...")
@@ -597,13 +597,13 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     esperar(1.5, check_stop_callback)
     verificar_parada(check_stop_callback)
 
-    pyautogui.click(pos_parametrizacao[0] - 215, pos_parametrizacao[1] + 20)
+    pyautogui.click(pos_parametrizacao[0] - 190, pos_parametrizacao[1] + 20)
     esperar(1.5, check_stop_callback)
     verificar_parada(check_stop_callback)
 
-    pyautogui.click(pos_parametrizacao[0] + 50, pos_parametrizacao[1] + 20)
+    pyautogui.click(pos_parametrizacao[0] + 90, pos_parametrizacao[1] + 20)
     esperar(1.5, check_stop_callback)
-    verificar_parada(check_stop_callback)
+    verificar_parada(check_stop_callback)  
 
     # Scroll para baixo
     pyautogui.scroll(-100)

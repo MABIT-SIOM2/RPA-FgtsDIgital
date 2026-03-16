@@ -165,6 +165,48 @@ class DatabaseHandler:
             self.disconnect()
 
 
+    def atualizar_empresa(self, empresa_id, dados):
+        """
+        Atualiza campos na tabela empresas de forma dinâmica.
+        Apenas as chaves presentes no dicionário 'dados' serão atualizadas.
+        """
+        if not self.connect():
+            return False
+
+        try:
+            cursor = self.connection.cursor()
+            
+            # Mapeamento de chaves permitidas
+            mapping = {
+                'codigo': 'codigo',
+                'cnpj': 'cnpj',
+                'razao': 'razao',
+                'grupo': 'grupo',
+                'onvioId': 'onvioId'
+            }
+
+            cleaned_dados = {}
+            for key, val in dados.items():
+                if key in mapping:
+                    cleaned_dados[mapping[key]] = val
+
+            if not cleaned_dados:
+                return True
+
+            set_clause = ", ".join([f"{col} = %s" for col in cleaned_dados.keys()])
+            params = list(cleaned_dados.values()) + [empresa_id]
+            query = f"UPDATE empresas SET {set_clause} WHERE id = %s"
+
+            cursor.execute(query, params)
+            self.connection.commit()
+            cursor.close()
+            return True
+        except Error as e:
+            print(f"❌ Erro ao atualizar dados da empresa: {e}")
+            return False
+        finally:
+            self.disconnect()
+
     def marcar_status_erro(self, empresa_id, mensagem):
         """
         Pode ser usado para marcar um erro específico ou mudar o status para 'falha'.

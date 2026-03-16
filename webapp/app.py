@@ -208,6 +208,19 @@ def upload_database():
                 results['details'].append(f"Linha {index+2}: CNPJ {cnpj_raw} não localizado no cadastro de empresas.")
                 continue
             
+            # Sincroniza dados básicos da empresa (Grupo, Código, Razão)
+            dados_empresa = {}
+            if 'GRUPO' in df.columns:
+                 dados_empresa['grupo'] = str(row.get('GRUPO', '')).strip()
+            if 'CODIGO' in df.columns:
+                 dados_empresa['codigo'] = str(row.get('CODIGO', '')).strip()
+            if 'NOME_EMPRESA' in df.columns or 'RAZAO_SOCIAL' in df.columns:
+                 nome_col = 'NOME_EMPRESA' if 'NOME_EMPRESA' in df.columns else 'RAZAO_SOCIAL'
+                 dados_empresa['razao'] = str(row.get(nome_col, '')).strip()
+            
+            if dados_empresa:
+                db.atualizar_empresa(empresa['id'], dados_empresa)
+
             # Mapeamento direcionado apenas para valores BASE e Competência
             dados_update = {
                 'competenciaInicial': parse_comp(row.get('COMPETENC', row.get('COMP_INICIAL', row.get('COMPETENCIA_INICIAL', '')))),
@@ -217,7 +230,7 @@ def upload_database():
                 'valorConsignado': parse_br_valor(row.get('VALOR_CONSIGNADO', row.get('CONSIGNADO_BASE', 0))),
                 'totalBase': parse_br_valor(row.get('TOTAL', row.get('TOTAL_BASE', 0))),
                 'vencimentoGuia': row.get('VENCIMENTO', row.get('VENCIMENTO_GUIA', row.get('VENC_GUIA', ''))),
-                'status': 0 # Quando sobe da planilha, volta para Pendente
+                'status': 1 # Quando sobe da planilha, vai direto para "A Consultar"
                 # IMPORTANTE: Colunas de extração (valorGuiaFgts, etc.) NÃO são incluídas aqui
             }
             
@@ -245,6 +258,9 @@ def upload_database():
 @app.route('/api/export', methods=['GET'])
 def export_report():
     try:
+        # Pega o grupo do parâmetro da query
+        selected_group = request.args.get('group')
+        
         db_config = get_db_config()
         db = DatabaseHandler(db_config)
         companies = db.obter_empresas_pendentes()
@@ -255,6 +271,13 @@ def export_report():
         # Converte para DataFrame
         df = pd.DataFrame(companies)
         
+        # Filtra pelo grupo se fornecido
+        if selected_group and selected_group != 'all':
+            df = df[df['grupo'] == selected_group]
+            
+        if df.empty:
+             return jsonify({'success': False, 'message': f'Nenhuma empresa encontrada no grupo {selected_group}'}), 404
+
         # Mapeamento de colunas para nomes amigáveis em Português
         column_mapping = {
             'codigo': 'Código',
@@ -276,20 +299,22 @@ def export_report():
         }
         
         # Filtra e renomeia apenas as colunas que existem no mapping
-        df = df[list(column_mapping.keys())].rename(columns=column_mapping)
+        df_export = df[list(column_mapping.keys())].rename(columns=column_mapping)
         
         # Mapeia o status numérico para texto
         status_map = {0: 'Pendente', 1: 'Ativo', 2: 'Concluído', 3: 'Erro'}
-        df['Status'] = df['Status ID'].map(status_map)
+        df_export['Status'] = df_export['Status ID'].map(status_map)
         
         # Cria um buffer de bytes para o arquivo Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Relatório FGTS')
+            df_export.to_excel(writer, index=False, sheet_name='Relatório FGTS')
             
         output.seek(0)
         
-        filename = f"Relatorio_FGTS_{datetime.now().strftime('%d_%m_%Y_%H%M')}.xlsx"
+        # Nome do arquivo personalizado com o grupo
+        nome_grupo = selected_group if selected_group and selected_group != 'all' else 'Geral'
+        filename = f"Relatorio_FGTS_{nome_grupo}_{datetime.now().strftime('%d_%m_%Y_%H%M')}.xlsx"
         
         return send_file(
             output,

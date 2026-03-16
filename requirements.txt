@@ -9,3 +9,6 @@ pyautogui
 pyperclip
 pyinstaller
 pillow
+mysql-connector-python
+flask
+flask-cors

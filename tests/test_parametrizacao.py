@@ -16,21 +16,21 @@ def check_stop_callback():
     return False
 
 def test_fluxo_final():
-    time.sleep(2)
+    time.sleep(7)
     try:
-        # print("📁 Localizando parametrização...")
-        # pos_parametrizacao = localizar_parametros()
-        # pyautogui.click(pos_parametrizacao[0] - 650, pos_parametrizacao[1])
-        # esperar(2, check_stop_callback)
-        # verificar_parada(check_stop_callback)
+        print("📁 Localizando parametrização...")
+        pos_parametrizacao = localizar_parametros()
+        pyautogui.click(pos_parametrizacao[0] - 630, pos_parametrizacao[1] + 20)
+        esperar(1.5, check_stop_callback)
+        verificar_parada(check_stop_callback)
 
-        # pyautogui.click(pos_parametrizacao[0] - 235, pos_parametrizacao[1])
-        # esperar(2, check_stop_callback)
-        # verificar_parada(check_stop_callback)  
+        pyautogui.click(pos_parametrizacao[0] - 190, pos_parametrizacao[1] + 20)
+        esperar(1.5, check_stop_callback)
+        verificar_parada(check_stop_callback)
 
-        # pyautogui.moveTo(pos_parametrizacao[0] + 50, pos_parametrizacao[1])
-        # esperar(2, check_stop_callback)
-        # verificar_parada(check_stop_callback)  
+        pyautogui.click(pos_parametrizacao[0] + 90, pos_parametrizacao[1] + 20)
+        esperar(1.5, check_stop_callback)
+        verificar_parada(check_stop_callback)  
         # Localiza competencia inicial
 
 
@@ -110,13 +110,13 @@ def test_fluxo_final():
         # esperar(3, check_stop_callback)
         # verificar_parada(check_stop_callback)
 
-        try:
-            pos_itens_consignado = localizar_itens_consignado()
-            if pos_itens_consignado:
-                pyautogui.click(pos_itens_consignado[0] - 810, pos_itens_consignado[1] - 10)
-                esperar(1, check_stop_callback)
-        except Exception as e:
-            print(f"⚠️ Erro ao extrair ou salvar data de pagamento: {e}")
+        # try:
+        #     pos_itens_consignado = localizar_itens_consignado()
+        #     if pos_itens_consignado:
+        #         pyautogui.click(pos_itens_consignado[0] - 810, pos_itens_consignado[1] - 10)
+        #         esperar(1, check_stop_callback)
+        # except Exception as e:
+        #     print(f"⚠️ Erro ao extrair ou salvar data de pagamento: {e}")
         
 
         
