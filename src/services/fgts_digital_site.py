@@ -816,16 +816,18 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             # Comparamos o totalBase (DB) com o totalGuia (Extraído Total) conforme solicitado
             print(f"⚖️ Validando: totalBase(DB)={total_base_esperado} vs totalGuia(Extraído)={total_extraido_final}")
             valor_divergente = abs(total_base_esperado - total_extraido_final) > 0.02
+            status_onvio_final = None  # Será definido conforme o resultado da validação
             
             if valor_divergente:
                 print(f"⚠️ DIVERGÊNCIA DETECTADA! Total Extraído: {total_extraido_final} | totalBase DB: {total_base_esperado}")
                 print(f"   Breakdown Extração: FGTS={valor_fgts_extraido}, Consignado={valor_consignado_extraido}")
-                status_final = 3 # Erro/Divergência
+                status_final = 3  # Erro/Divergência
+                status_onvio_final = "Valores divergentes"
                 validacao_sucesso = False
             else:
                 print(f"✅ VALORES CONFEREM! (Total extraído bate com totalBase do banco)")
                 
-                # --- LÓGICA DE VALIDAÇÃO DA DATA (NOVA REGRA) ---
+                # --- LÓGICA DE VALIDAÇÃO DA DATA ---
                 data_venc_str = resumo_extraido.get('vencimento_guia')
                 data_valida = False
                 
@@ -850,10 +852,12 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                     print("❌ Data de vencimento não localizada para validação.")
                 
                 if data_valida:
-                    status_final = 2 # Concluído
+                    status_final = 2  # Concluído
+                    status_onvio_final = "A publicar"
                     validacao_sucesso = True
                 else:
-                    status_final = 3 # Erro/Divergência (ou data fora do prazo)
+                    status_final = 3  # Data incorreta
+                    status_onvio_final = "Data incorreta"
                     validacao_sucesso = False
                     print("⚠️ A emissão será bloqueada devido à data de vencimento inválida.")
 
@@ -863,7 +867,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             
             # Atualização no MySQL
             if empresa_id_db:
-                print(f"🔌 Atualizando resultados no MySQL para empresa ID {empresa_id_db} (Status: {status_final})...")
+                print(f"🔌 Atualizando resultados no MySQL para empresa ID {empresa_id_db} (Status: {status_final} | statusOnvio: {status_onvio_final})...")
                 # Usar db_config que é garantido como o dicionário de conexão
                 db = DatabaseHandler(db_config if db_config else caminho_xlsx)
             
@@ -874,7 +878,8 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                     'valorGuiaConsignado': resumo_extraido.get('valor_consignado', 0),
                     'totalGuia': total_extraido_final,
                     'vencimentoGuia': resumo_extraido.get('vencimento_guia'),
-                    'status': status_final
+                    'status': status_final,
+                    'statusOnvio': status_onvio_final
                 }
                 
                 # Fallback se os campos específicos vierem zerados
@@ -882,10 +887,6 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                     dados_db['valorGuiaFgts'] = mapa_valores.get(competencia, 0)
                 if dados_db['valorGuiaFgts13'] == 0:
                     dados_db['valorGuiaFgts13'] = mapa_valores.get("13º/2025", 0)
-
-                # Define statusOnvio se houve divergência
-                if status_final == 3: # Erro/Divergência
-                    dados_db['statusOnvio'] = 'Divergente'
 
                 print(f"🔌 Payload para atualização no DB: {dados_db}")
                 db.atualizar_dados_guia(empresa_id_db, dados_db)
@@ -1005,14 +1006,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         else:
             print("✅ Documento salvo com sucesso.")
         
-        # Sucesso no salvamento do PDF -> Atualizar Status Onvio para "A publicar"
-        if empresa_id_db:
-            try:
-                print(f"🔌 Atualizando statusOnvio para 'A publicar' no MySQL (ID {empresa_id_db})...")
-                db = DatabaseHandler(db_config if db_config else caminho_xlsx)
-                db.atualizar_status_onvio(empresa_id_db, "A publicar")
-            except Exception as e:
-                print(f"⚠️ Erro ao atualizar statusOnvio para 'A publicar': {e}")
+        # Sucesso no salvamento do PDF -> statusOnvio já foi definido como "A publicar" no payload acima
 
         time.sleep(3)
 

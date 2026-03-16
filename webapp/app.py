@@ -9,6 +9,12 @@ import pandas as pd
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
 
+# Força UTF-8 no console do Windows para evitar erro 'charmap' com emojis nos logs
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # Adiciona o diretório raiz ao path para importar DatabaseHandler
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -294,16 +300,24 @@ def export_report():
             'valorGuiaFgts13': 'Guia FGTS 13º',
             'valorGuiaConsignado': 'Guia Consignado',
             'totalGuia': 'Total Guia',
-            'status': 'Status ID',
+            'status': '_status_num',
+            'statusOnvio': 'Status',
             'vencimentoGuia': 'Vencimento'
         }
         
         # Filtra e renomeia apenas as colunas que existem no mapping
         df_export = df[list(column_mapping.keys())].rename(columns=column_mapping)
         
-        # Mapeia o status numérico para texto
-        status_map = {0: 'Pendente', 1: 'Ativo', 2: 'Concluído', 3: 'Erro'}
-        df_export['Status'] = df_export['Status ID'].map(status_map)
+        # Mapeia o status numérico para texto como fallback se statusOnvio estiver vazio
+        status_map = {0: 'Pendente', 1: 'A consultar', 2: 'Concluído', 3: 'Erro'}
+        df_export['Status'] = df_export['Status'].fillna('').replace('', None)
+        df_export['Status'] = df_export['Status'].where(
+            df_export['Status'].notna(),
+            df_export['_status_num'].map(status_map)
+        )
+        
+        # Remove a coluna auxiliar do status numérico
+        df_export.drop(columns=['_status_num'], inplace=True)
         
         # Cria um buffer de bytes para o arquivo Excel
         output = io.BytesIO()

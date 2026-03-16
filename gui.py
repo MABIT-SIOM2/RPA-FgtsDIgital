@@ -874,16 +874,18 @@ class BotGUI:
         def run_server():
             try:
                 self.log("🌐 Iniciando servidor do dashboard (webapp/app.py)...")
-                # Caminho absoluto para o app.py
-                app_path = os.path.join(os.path.dirname(__file__), 'webapp', 'app.py')
+                # Caminho absoluto para o app.py e diretório raiz do projeto
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                app_path = os.path.join(base_dir, 'webapp', 'app.py')
                 
                 # Inicia o processo do servidor
-                # Usamos sys.executable para garantir que use o mesmo interpretador Python
+                # cwd=base_dir garante que o Flask encontre templates/, static/ e config_multi.json
+                # DEVNULL evita deadlock por PIPE não consumido
                 self.server_process = subprocess.Popen(
                     [sys.executable, app_path],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
+                    cwd=base_dir,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
                 )
                 
                 self.log("✅ Servidor web iniciado! Aguardando 3 segundos para abrir o navegador...")
