@@ -1,5 +1,3 @@
-import cv2
-import numpy as np
 import os
 # import easyocr # Recomendação para extração de texto robusta
 
@@ -15,7 +13,6 @@ class CaptchaSolver:
         if self.reader is None:
             print("👁️ Inicializando OCR para ler instruções do captcha...")
             # self.reader = easyocr.Reader(['pt', 'en'])
-            pass
 
     def extrair_texto_instrucao(self, screenshot_path):
         """
@@ -53,7 +50,6 @@ class CaptchaSolver:
         """Carrega o modelo treinado (.pt, .onnx, etc)"""
         print(f"🤖 Carregando modelo de IA: {model_path}")
         # self.model = YOLO(model_path)
-        pass
 
     def predict_tiles(self, tiles_path):
         """

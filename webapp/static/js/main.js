@@ -48,10 +48,10 @@ async function loadGroups() {
 }
 
 function renderGroupList() {
-    // Mantém o item "Todos os Grupos"
+    // Mantém o item "Todas as Carteiras"
     const staticItems = `<li class="${currentGroup === 'all' ? 'active' : ''}" data-group="all">
         <i data-lucide="layers"></i>
-        <span>Todos os Grupos</span>
+        <span>Todas as Carteiras</span>
     </li>`;
 
     const dynamicItems = groups.map(group => `
@@ -80,7 +80,7 @@ function filterAndDisplay() {
     const searchTerm = searchInput.value.toLowerCase();
 
     const filtered = allCompanies.filter(company => {
-        const matchesGroup = currentGroup === 'all' || company.grupo === currentGroup;
+        const matchesGroup = currentGroup === 'all' || company.carteira === currentGroup;
         const matchesSearch = company.razao.toLowerCase().includes(searchTerm) ||
             company.cnpj.includes(searchTerm);
         return matchesGroup && matchesSearch;
@@ -126,7 +126,7 @@ function formatCurrency(value) {
 
 function renderTable(companies) {
     if (companies.length === 0) {
-        companyTbody.innerHTML = `<tr><td colspan="17" style="text-align: center; padding: 40px; color: var(--text-muted);">Nenhuma empresa encontrada.</td></tr>`;
+        companyTbody.innerHTML = `<tr><td colspan="15" style="text-align: center; padding: 40px; color: var(--text-muted);">Nenhuma empresa encontrada.</td></tr>`;
         return;
     }
 
@@ -134,27 +134,28 @@ function renderTable(companies) {
         let statusClass = 'pending';
         let statusText = 'Pendente';
 
-        if (company.status == 1) {
+        const s = parseInt(company.status);
+        if (s === 1) {
             statusClass = 'active-status';
             statusText = 'A Consultar';
-        } else if (company.status == 2) {
+        } else if (s === 2) {
             statusClass = 'success';
             statusText = 'Concluido';
-        } else if (company.status == 3) {
+        } else if (s === 3) {
             statusClass = 'error';
             statusText = 'Erro';
         }
 
+
         return `
             <tr>
-                <td>
-                    <input type="checkbox" class="company-checkbox" data-id="${company.empresa_id}" ${company.status >= 1 ? 'checked' : ''}>
+                <td style="text-align: center;">
+                    <input type="checkbox" class="company-checkbox" data-id="${company.empresa_id}" ${company.status === 1 ? 'checked' : ''}>
                 </td>
-                <td><strong>${company.codigo}</strong></td>
+
                 <td>${company.cnpj}</td>
                 <td>${company.razao}</td>
-                <td><span class="status-badge" style="background: #f1f5f9; color: var(--text-muted);">${company.grupo || 'N/A'}</span></td>
-                <td>${company.competenciaInicial || '-'}</td>
+                <td><span class="status-badge" style="background: #f1f5f9; color: var(--text-muted);">${company.carteira || 'N/A'}</span></td>
                 <td>${company.competenciaFinal || '-'}</td>
                 <td>${formatCurrency(company.valorFgts)}</td>
                 <td>${formatCurrency(company.valorFgts13)}</td>
@@ -183,8 +184,8 @@ function renderTable(companies) {
 }
 
 function setupCheckboxListeners() {
-    // Checkboxes Individuais - Os listeners agora são apenas para debug ou feedback visual se necessário
-    // mas a gravação real é feita pelo botão "Gravar Seleção"
+    // Apenas para fins estéticos ou de estado local, se necessário.
+    // A gravação real agora volta a ser pelo botão "Gravar Seleção".
 }
 
 function setupGlobalEvents() {
@@ -241,6 +242,17 @@ function setupGlobalEvents() {
         });
     }
 
+
+
+    // Sidebar Toggle
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
     // Evento de busca
     searchInput.addEventListener('input', () => {
         currentPage = 1;
@@ -257,7 +269,7 @@ function setupGlobalEvents() {
 
     document.getElementById('next-page').addEventListener('click', () => {
         const totalItems = allCompanies.filter(c => {
-            const matchesGroup = currentGroup === 'all' || c.grupo === currentGroup;
+            const matchesGroup = currentGroup === 'all' || c.carteira === currentGroup;
             const searchTerm = searchInput.value.toLowerCase();
             return matchesGroup && (c.razao.toLowerCase().includes(searchTerm) || c.cnpj.includes(searchTerm));
         }).length;
@@ -291,33 +303,33 @@ function setupGlobalEvents() {
 }
 
 async function saveBatchStatus() {
-    const checkboxes = document.querySelectorAll('.company-checkbox');
-    const selectedIds = [];
-    const unselectedIds = [];
+    const consultaCheckboxes = document.querySelectorAll('.company-checkbox');
+    
+    const selConsultaIds = [];
+    const unselConsultaIds = [];
 
-    checkboxes.forEach(cb => {
+    // 1. Identifica apenas o que mudou na tela (Deltas)
+    consultaCheckboxes.forEach(cb => {
         const id = parseInt(cb.getAttribute('data-id'));
-        const isChecked = cb.checked;
-        
-        // Localiza os dados atuais da empresa na memória
         const company = allCompanies.find(c => c.empresa_id === id);
         if (!company) return;
 
         const currentStatus = parseInt(company.status);
+        const isChecked = cb.checked;
 
-        if (isChecked) {
-            // Se foi marcado e não estava "A Consultar" (1)
-            // SÓ permite se for status 0 (Pendente) ou 3 (Erro)
-            if (currentStatus === 0 || currentStatus === 3) {
-                selectedIds.push(id);
-            }
-        } else {
-            // Se foi desmarcado e estava "A Consultar" (1), manda voltar para Pendente (0)
-            if (currentStatus === 1) {
-                unselectedIds.push(id);
-            }
+        if (isChecked && currentStatus !== 1) {
+            // Estava 0, 2 ou 3 e foi marcado (quer consultar)
+            selConsultaIds.push(id);
+        } else if (!isChecked && currentStatus === 1) {
+            // Estava marcado (1) e foi desmarcado (desistiu de consultar)
+            unselConsultaIds.push(id);
         }
     });
+
+    if (selConsultaIds.length === 0 && unselConsultaIds.length === 0) {
+        alert('Nenhuma alteração detectada para salvar.');
+        return;
+    }
 
     const btn = document.getElementById('btn-save-batch');
     const originalText = btn.innerHTML;
@@ -326,29 +338,28 @@ async function saveBatchStatus() {
 
     showLoading(true);
     try {
-        // Envia marcadas como 1
-        if (selectedIds.length > 0) {
+        // Envia atualizações apenas se houver mudanças
+        if (selConsultaIds.length > 0) {
             await fetch('/api/batch-toggle-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedIds, status: 1 })
+                body: JSON.stringify({ ids: selConsultaIds, status: 1 })
             });
         }
-
-        // Envia desmarcadas como 0
-        if (unselectedIds.length > 0) {
+        
+        if (unselConsultaIds.length > 0) {
             await fetch('/api/batch-toggle-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: unselectedIds, status: 0 })
+                body: JSON.stringify({ ids: unselConsultaIds, status: 0 })
             });
         }
 
-        alert('Seleção gravada com sucesso!');
-        loadCompanies();
+        alert(`Sucesso! ${selConsultaIds.length + unselConsultaIds.length} alteração(ões) gravada(s).`);
+        await loadCompanies();
     } catch (error) {
         console.error('Erro ao gravar em lote:', error);
-        alert('Erro ao gravar a seleção no banco de dados.');
+        alert('Erro ao gravar as seleções no banco de dados.');
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -528,6 +539,55 @@ async function exportReport() {
     } catch (error) {
         console.error('Erro ao exportar:', error);
         alert('Erro ao exportar: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        lucide.createIcons();
+    }
+}
+
+async function exportPDF() {
+    const btn = document.getElementById('btn-export-pdf');
+    const originalText = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="spinner-small"></i> Exportando...';
+
+    try {
+        let exportUrl = '/api/export-pdf';
+        if (currentGroup && currentGroup !== 'all') {
+            exportUrl += `?group=${encodeURIComponent(currentGroup)}`;
+        }
+        const response = await fetch(exportUrl);
+
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.message || 'Erro ao exportar PDF');
+        }
+
+        const blob = await response.blob();
+        let filename = 'Relatorio_FGTS.pdf';
+        const disposition = response.headers.get('Content-Disposition');
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+    } catch (error) {
+        console.error('Erro ao exportar PDF:', error);
+        alert('Erro ao exportar PDF: ' + error.message);
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;

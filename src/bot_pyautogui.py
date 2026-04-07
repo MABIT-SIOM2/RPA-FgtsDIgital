@@ -1,17 +1,13 @@
 import openpyxl
-import pyautogui
 import os
-import sys
 import time
 
 # Importa utilitários compartilhados (re-exportando resource_path para compatibilidade com gui.py)
-from src.utils.automation import resource_path, StopExecution, esperar
+from src.utils.automation import StopExecution
 
 # Importa serviços
-from src.services.browser import voltar_para_pagina_inicial, fechar_navegador
-from src.services.fgts_digital import consultar_fgts_digital
+from src.services.browser import fechar_navegador
 from src.services.fgts_digital_site import consultar_fgts_digital_site
-from src.services.onvio import consultar_onvio
 from src.utils.database_handler import DatabaseHandler
 
 #---------------------------
@@ -29,14 +25,13 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
             db = DatabaseHandler(caminho_arquivo_xlsx)
             
             # Define se deve filtrar por statusOnvio
-            filtrar_onvio = (tipo_consulta == "ONVIO")
-            db_dados = db.obter_empresas_pendentes(filtrar_onvio=filtrar_onvio)
+            db_dados = db.obter_empresas_pendentes()
             
             for item in db_dados:
                 cnpj = item['cnpj']
                 nome = item.get('razao', 'Empresa via DB')
                 codigo = item['codigo']
-                grupo = item.get('grupo', '')
+                carteira = item.get('carteira', '')
                 
                 # Para Onvio/FGTS, pegamos a competência do banco (competenciaInicial)
                 competencia = item.get('competenciaInicial', '')
@@ -48,8 +43,8 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
                 status_atual = item.get('status', 0)
                 status_onvio = item.get('statusOnvio', '')  # Novo campo
                 
-                # Estrutura: [cnpj, nome, codigo, grupo, competencia, empresa_id, status_atual, total_base, vencimento, status_onvio]
-                dados_empresas.append([str(cnpj), str(nome), str(codigo), grupo, str(competencia), empresa_id, status_atual, total_base, vencimento, status_onvio])
+                # Estrutura: [cnpj, nome, codigo, carteira, competencia, empresa_id, status_atual, total_base, vencimento, status_onvio]
+                dados_empresas.append([str(cnpj), str(nome), str(codigo), carteira, str(competencia), empresa_id, status_atual, total_base, vencimento, status_onvio])
             
             print(f"✅ {len(dados_empresas)} empresas encontradas no MySQL.")
 
@@ -74,23 +69,23 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
             col_nome = headers.get("NOME_EMPRESA")
             col_codigo = headers.get("CODIGO")
             col_competencia = headers.get("COMPETENCIA")
-            col_grupo = headers.get("GRUPO")
+            col_carteira = headers.get("CARTEIRA")
             
             for row in sheet.iter_rows(min_row=2, values_only=True):
                 cnpj = row[col_cnpj]
                 if cnpj:
                     nome = row[col_nome] if col_nome is not None else "Sem Nome"
                     codigo = row[col_codigo] if col_codigo is not None else ""
-                    grupo = row[col_grupo] if col_grupo is not None else ""
+                    carteira = row[col_carteira] if col_carteira is not None else ""
                     competencia = row[col_competencia] if col_competencia is not None else ""
                     
-                    if grupo and str(grupo).strip():
-                         grupo = str(grupo).strip()
+                    if carteira and str(carteira).strip():
+                         carteira = str(carteira).strip()
                     else:
-                         grupo = ""
+                         carteira = ""
                     
                     # Para Excel, o empresa_id e status são None (processa tudo), total_base e vencimento são 0/vazio, statusOnvio vazio
-                    dados_empresas.append([str(cnpj), str(nome), str(codigo), grupo, str(competencia), None, None, 0.0, "", ""])
+                    dados_empresas.append([str(cnpj), str(nome), str(codigo), carteira, str(competencia), None, None, 0.0, "", ""])
 
     except Exception as e:
         print(f"Erro ao ler o arquivo: {e}")
@@ -106,17 +101,11 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
             return
     
     #3: Determinar função de consulta (Apenas FGTS Digital agora)
-    if tipo_consulta == "FGTS Digital":
-        funcao_consulta = consultar_fgts_digital
-        print(f'📋 Tipo de consulta: FGTS Digital')
-    elif tipo_consulta == "FGTS Digital Site":
+    if tipo_consulta == "FGTS Digital Site":
         funcao_consulta = consultar_fgts_digital_site
         print(f'📋 Tipo de consulta: FGTS Digital Site')
-    elif tipo_consulta == "ONVIO":
-        funcao_consulta = consultar_onvio
-        print(f'📋 Tipo de consulta: ONVIO')
     else:
-        print(f'⚠️ Selecione um tipo de consulta válido. (FGTS Digital, FGTS Digital Site ou ONVIO suportados) ')
+        print(f'⚠️ Selecione um tipo de consulta válido. (FGTS Digital Site suportado) ')
         return
 
     print(f"[DEBUG] executar_consulta_em_lote: tipo_consulta='{tipo_consulta}', funcao_consulta={funcao_consulta.__name__}")
@@ -135,9 +124,8 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
     primeira_execucao_efetiva = True
 
     # Controla se a parada foi solicitada
-    parada_solicitada = False
 
-    for i, (cnpj, nome, codigo, grupo, competencia, empresa_id, status_v, total_base_esperado, vencimento, status_onvio) in enumerate(dados_empresas):
+    for i, (cnpj, nome, codigo, carteira, competencia, empresa_id, status_v, total_base_esperado, vencimento, status_onvio) in enumerate(dados_empresas):
         # Verifica parada
         if check_stop_callback and check_stop_callback():
              print("\n🛑 Parada solicitada pelo usuário.")
@@ -145,14 +133,14 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
 
         # LÓGICA DE STATUS (MySQL Only)
         # Se for MySQL (empresa_id não é None) e o status não for 1 (Selecionado)
-        if empresa_id is not None and status_v != 1 and tipo_consulta != "ONVIO":
+        if empresa_id is not None and status_v != 1:
              print(f"⏭️ Pulando {nome} (Status {status_v} - Não selecionado para consulta)")
              continue
 
 
         # Define a pasta de destino atual
-        if grupo:
-            pasta_destino_atual = os.path.join(pasta_destino, grupo)
+        if carteira:
+            pasta_destino_atual = os.path.join(pasta_destino, carteira)
         else:
             pasta_destino_atual = pasta_destino
             
@@ -165,7 +153,7 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
                 os.makedirs(pasta_destino_atual)
                 print(f"Pasta de grupo criada: {pasta_destino_atual}")
             except Exception as e:
-                print(f"Erro ao criar subpasta {grupo}: {e}")
+                print(f"Erro ao criar subpasta {carteira}: {e}")
                 continue # Pula este CNPJ se não conseguir criar a pasta
 
         # Tratamento do CNPJ
@@ -173,7 +161,7 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
         cnpj_limpo = cnpj_limpo.zfill(14)
         
         print(f"\n---------------------------------------------------")
-        print(f"Processando {i+1}/{len(dados_empresas)}: {codigo} | {nome} | {grupo if grupo else '[Sem Grupo]'}")
+        print(f"Processando {i+1}/{len(dados_empresas)}: {codigo} | {nome} | {carteira if carteira else '[Sem Carteira]'}")
         print(f"CNPJ: {cnpj_limpo}")
         print(f"---------------------------------------------------")
 
@@ -198,75 +186,31 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
         
         
         try:
-            if tipo_consulta == "ONVIO":
-                # Onvio: passa empresa_id e db_config
-                resultado = funcao_consulta(
-                    empresa_id=empresa_id,
-                    db_config=caminho_arquivo_xlsx if is_mysql else None,
-                    pasta_destino=pasta_destino_atual,
-                    abrir_navegador=abrir_navegador,
-                    primeira_pasta=primeira_pasta,
-                    check_stop_callback=check_stop_callback,
-                    tipo_consulta=tipo_consulta,
-                    caminho_xlsx=caminho_arquivo_xlsx
-                )
-            elif tipo_consulta == "FGTS Digital Site":
-                # FGTS Digital Site: passa empresa_id e db_config
-                resultado = funcao_consulta(
-                    empresa_id=empresa_id,
-                    db_config=caminho_arquivo_xlsx if is_mysql else None,
-                    pasta_destino=pasta_destino_atual,
-                    abrir_navegador=abrir_navegador,
-                    primeira_pasta=primeira_pasta,
-                    check_stop_callback=check_stop_callback,
-                    tipo_consulta=tipo_consulta,
-                    caminho_xlsx=caminho_arquivo_xlsx,
-                    empresa_id_db=empresa_id,
-                    total_base_esperado=total_base_esperado,
-                    primeira_execucao_efetiva=flag_primeira
-                )
-            else:
-                # FGTS Digital (Selenium): mantém parâmetros individuais
-                resultado = funcao_consulta(
-                    cnpj=cnpj_limpo,
-                    nome_empresa=nome,
-                    codigo=codigo,
-                    competencia=competencia,
-                    pasta_destino=pasta_destino_atual,
-                    abrir_navegador=abrir_navegador,
-                    primeira_pasta=primeira_pasta,
-                    check_stop_callback=check_stop_callback,
-                    tipo_consulta=tipo_consulta,
-                    caminho_xlsx=caminho_arquivo_xlsx,
-                    empresa_id_db=empresa_id,
-                    total_base_esperado=total_base_esperado,
-                    vencimento=vencimento
-                )
+            # FGTS Digital Site: passa empresa_id e db_config
+            resultado = funcao_consulta(
+                empresa_id=empresa_id,
+                db_config=caminho_arquivo_xlsx if is_mysql else None,
+                pasta_destino=pasta_destino_atual,
+                abrir_navegador=abrir_navegador,
+                primeira_pasta=primeira_pasta,
+                check_stop_callback=check_stop_callback,
+                tipo_consulta=tipo_consulta,
+                caminho_xlsx=caminho_arquivo_xlsx,
+                empresa_id_db=empresa_id,
+                total_base_esperado=total_base_esperado,
+                primeira_execucao_efetiva=flag_primeira
+            )
 
             
             # Se o serviço retornou (sucesso ou falha controlada), atualizamos a referência da pasta
             if resultado:
                  ultima_pasta_usada = pasta_destino_atual
                  
-                 # Se for ONVIO e tiver empresa_id, atualiza status para "Publicado"
-                 if tipo_consulta == "ONVIO" and empresa_id is not None and is_mysql:
-                     db = DatabaseHandler(caminho_arquivo_xlsx)
-                     if db.atualizar_status_onvio(empresa_id, "Publicado"):
-                         print(f"✅ Status Onvio atualizado para 'Publicado'")
-                         db.atualizar_dados_guia(empresa_id, {'status': 2})
-                         print(f"✅ Status Principal atualizado para 2 (Concluído)")
-            
         except StopExecution:
             print("\n🛑 Execução interrompida.")
             break
         except Exception as e:
             print(f"🔴 Erro ao processar CNPJ {cnpj}: {e}")
-            
-            # Marca erro no banco se for ONVIO
-            if tipo_consulta == "ONVIO" and empresa_id is not None and is_mysql:
-                db = DatabaseHandler(caminho_arquivo_xlsx)
-                db.atualizar_status_onvio(empresa_id, "Não publicado")
-                print(f"⚠️ Status Onvio atualizado para 'Não publicado'")
             
             # Se houve erro, aguarda 5 segundos e fecha o navegador para garantir
             # que a próxima consulta recomece do zero (login).
@@ -284,22 +228,18 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
 #---------------------------
 # Função para consulta INDIVIDUAL
 #---------------------------
-def executar_consulta_individual(cnpj, nome, codigo, pasta_destino, competencia="", grupo="", tipo_consulta="Certidão SATE", check_stop_callback=None):
+def executar_consulta_individual(cnpj, nome, codigo, pasta_destino, competencia="", carteira="", tipo_consulta="Certidão SATE", check_stop_callback=None):
     
     # 1. Determinar função
-    if tipo_consulta == "FGTS Digital":
-        funcao_consulta = consultar_fgts_digital
-    elif tipo_consulta == "FGTS Digital Site":
+    if tipo_consulta == "FGTS Digital Site":
         funcao_consulta = consultar_fgts_digital_site
-    elif tipo_consulta == "ONVIO":
-        funcao_consulta = consultar_onvio
     else:
         print(f'⚠️ Tipo de consulta inválido: {tipo_consulta}')
         return
 
     # 2. Definir e Criar pasta de destino (com lógica de grupo)
-    if grupo and str(grupo).strip():
-        pasta_destino_atual = os.path.join(pasta_destino, str(grupo).strip())
+    if carteira and str(carteira).strip():
+        pasta_destino_atual = os.path.join(pasta_destino, str(carteira).strip())
     else:
         pasta_destino_atual = pasta_destino
 

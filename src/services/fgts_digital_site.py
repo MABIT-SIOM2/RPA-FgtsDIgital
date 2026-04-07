@@ -4,9 +4,9 @@ import pyperclip
 import os
 import re
 import datetime
-from src.utils.automation import resource_path, localizar_imagem, verificar_parada, esperar, StopExecution
-from src.services.browser import abrir_navegador_e_pagina, voltar_para_pagina_inicial   
-from src.utils.excel_handler import salvar_dados_detalhados, atualizar_valor_guia_original, marcar_guia_nao_encontrada, marcar_status_validacao
+from src.utils.automation import resource_path, localizar_imagem, verificar_parada, esperar
+from src.services.browser import abrir_navegador_e_pagina   
+from src.utils.excel_handler import atualizar_valor_guia_original, marcar_status_validacao
 from src.utils.database_handler import DatabaseHandler
 
 def localizar_btn_entrar_gov():
@@ -117,6 +117,9 @@ def localizar_quadro_competencia_consignado():
 
 def localizar_quadro_competencia_13():
     return localizar_imagem(resource_path("src/assets/site/quadro_competencia_13.png"), confianca=0.7, deve_quebrar=False)
+
+def localizar_vencimento_debito():
+    return localizar_imagem(resource_path("src/assets/site/vencimento_debito.png"), confianca=0.7, deve_quebrar=False)
 
 def extrair_dados_tabela_detalhada(check_stop_callback=None, alerta_ativo=False):
     """
@@ -544,10 +547,10 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         competencia_fi = "13º/2025" # No site, usamos 13º/2025
     
     
-    pos_quadro_competencia = localizar_quadro_competencia()
+    pos_vencimento_debito = localizar_vencimento_debito()
     
-    if pos_quadro_competencia:
-        pyautogui.click(pos_quadro_competencia[0] - 150, pos_quadro_competencia[1] + 50)
+    if pos_vencimento_debito:
+        pyautogui.click(pos_vencimento_debito[0] - 750, pos_vencimento_debito[1])
         esperar(3, check_stop_callback)
         verificar_parada(check_stop_callback)
         pyperclip.copy(competencia_in)
@@ -556,7 +559,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         esperar(3, check_stop_callback)
         verificar_parada(check_stop_callback)
 
-        pyautogui.click(pos_quadro_competencia[0] + 150, pos_quadro_competencia[1] + 50)
+        pyautogui.click(pos_vencimento_debito[0] + 520, pos_vencimento_debito[1])
         esperar(3, check_stop_callback)
         verificar_parada(check_stop_callback)
         pyperclip.copy(competencia_fi)
@@ -816,13 +819,11 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             # Comparamos o totalBase (DB) com o totalGuia (Extraído Total) conforme solicitado
             print(f"⚖️ Validando: totalBase(DB)={total_base_esperado} vs totalGuia(Extraído)={total_extraido_final}")
             valor_divergente = abs(total_base_esperado - total_extraido_final) > 0.02
-            status_onvio_final = None  # Será definido conforme o resultado da validação
             
             if valor_divergente:
                 print(f"⚠️ DIVERGÊNCIA DETECTADA! Total Extraído: {total_extraido_final} | totalBase DB: {total_base_esperado}")
                 print(f"   Breakdown Extração: FGTS={valor_fgts_extraido}, Consignado={valor_consignado_extraido}")
                 status_final = 3  # Erro/Divergência
-                status_onvio_final = "Valores divergentes"
                 validacao_sucesso = False
             else:
                 print(f"✅ VALORES CONFEREM! (Total extraído bate com totalBase do banco)")
@@ -853,11 +854,9 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                 
                 if data_valida:
                     status_final = 2  # Concluído
-                    status_onvio_final = "A publicar"
                     validacao_sucesso = True
                 else:
                     status_final = 3  # Data incorreta
-                    status_onvio_final = "Data incorreta"
                     validacao_sucesso = False
                     print("⚠️ A emissão será bloqueada devido à data de vencimento inválida.")
 
@@ -867,7 +866,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             
             # Atualização no MySQL
             if empresa_id_db:
-                print(f"🔌 Atualizando resultados no MySQL para empresa ID {empresa_id_db} (Status: {status_final} | statusOnvio: {status_onvio_final})...")
+                print(f"🔌 Atualizando resultados no MySQL para empresa ID {empresa_id_db} (Status: {status_final})...")
                 # Usar db_config que é garantido como o dicionário de conexão
                 db = DatabaseHandler(db_config if db_config else caminho_xlsx)
             
@@ -879,7 +878,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                     'totalGuia': total_extraido_final,
                     'vencimentoGuia': resumo_extraido.get('vencimento_guia'),
                     'status': status_final,
-                    'statusOnvio': status_onvio_final
+                    'statusOnvio': 'A publicar'
                 }
                 
                 # Fallback se os campos específicos vierem zerados
@@ -892,12 +891,6 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                 db.atualizar_dados_guia(empresa_id_db, dados_db)
     except Exception as e:
         print(f"❌ Erro durante a extração/salvamento: {e}")
-        # Tenta atualizar status para Erro no banco
-        if empresa_id_db:
-             try:
-                db = DatabaseHandler(db_config if db_config else caminho_xlsx)
-                db.atualizar_status_onvio(empresa_id_db, "Erro")
-             except: pass
     else:
         # Se não houve exceção, mas o total foi 0, também devemos registrar o erro no banco
         if total_extraido_final == 0 and empresa_id_db:
@@ -905,7 +898,6 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                 print(f"🔌 Atualizando erro de extração (valor 0) no MySQL para empresa ID {empresa_id_db}...")
                 db = DatabaseHandler(db_config if db_config else caminho_xlsx)
                 db.marcar_status_erro(empresa_id_db, 3) # 3 = Erro/Falha
-                db.atualizar_status_onvio(empresa_id_db, "Erro")
              except Exception as e_db:
                 print(f"❌ Erro ao registrar falha no banco: {e_db}")
 
@@ -1030,9 +1022,5 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     pyautogui.click(pos_btn_trocar_perfil)
     verificar_parada(check_stop_callback)
     time.sleep(5)
-
-   
-
-
 
     return True 

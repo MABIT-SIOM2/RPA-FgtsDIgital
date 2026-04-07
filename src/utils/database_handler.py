@@ -29,10 +29,9 @@ class DatabaseHandler:
         if self.connection and self.connection.is_connected():
             self.connection.close()
 
-    def obter_empresas_pendentes(self, filtrar_onvio=False):
+    def obter_empresas_pendentes(self):
         """
         Executa a query fornecida pelo usuário para buscar empresas pendentes.
-        Se filtrar_onvio=True, filtra apenas empresas com statusOnvio = 'A publicar'.
         """
         if not self.connect():
             return []
@@ -42,11 +41,10 @@ class DatabaseHandler:
             query = """
                 SELECT 
                     e.id as empresa_id,
-                    e.onvioId,
                     e.codigo,
                     e.cnpj,
                     e.razao,
-                    e.grupo,
+                    ed.carteira,
                     r.valorFgts,
                     r.valorFgts13,
                     r.valorConsignado,
@@ -63,11 +61,11 @@ class DatabaseHandler:
                 FROM empresas e
                 INNER JOIN roboFgts r
                     ON r.empresaId = e.id
+                LEFT JOIN empresa_departamento ed
+                    ON ed.empresaId = e.id AND ed.departamentoId = 2
             """
             
-            # Adiciona filtro se for para Onvio
-            if filtrar_onvio:
-                query += " WHERE r.statusOnvio = 'A publicar'"
+            # Sem filtros adicionais de Onvio
             
             cursor.execute(query)
             resultados = cursor.fetchall()
@@ -81,8 +79,10 @@ class DatabaseHandler:
 
     def atualizar_dados_guia(self, empresa_id, dados):
         """
+        
         Atualiza campos na tabela roboFgts de forma dinâmica.
         Apenas as chaves presentes no dicionário 'dados' serão atualizadas.
+
         """
         if not self.connect():
             return False
@@ -129,7 +129,7 @@ class DatabaseHandler:
                         cleaned_dados[db_col] = f"{ano}-{mes}-{dia}"
                     except:
                         cleaned_dados[db_col] = val
-                elif key in ['status', 'statusOnvio', 'competenciaInicial', 'competenciaFinal', 'vencimentoGuia']:
+                elif key in ['status', 'competenciaInicial', 'competenciaFinal', 'vencimentoGuia']:
                     cleaned_dados[db_col] = val
                 else:
                     # Campos numéricos
@@ -167,7 +167,7 @@ class DatabaseHandler:
 
     def atualizar_empresa(self, empresa_id, dados):
         """
-        Atualiza campos na tabela empresas de forma dinâmica.
+        Atualiza campos na tabela empresas e empresa_departamento de forma dinâmica.
         Apenas as chaves presentes no dicionário 'dados' serão atualizadas.
         """
         if not self.connect():
@@ -176,32 +176,38 @@ class DatabaseHandler:
         try:
             cursor = self.connection.cursor()
             
-            # Mapeamento de chaves permitidas
-            mapping = {
+            # Mapeamento de chaves permitidas para a tabela 'empresas'
+            mapping_empresas = {
                 'codigo': 'codigo',
                 'cnpj': 'cnpj',
-                'razao': 'razao',
-                'grupo': 'grupo',
-                'onvioId': 'onvioId'
+                'razao': 'razao'
             }
 
-            cleaned_dados = {}
+            dados_empresas = {}
             for key, val in dados.items():
-                if key in mapping:
-                    cleaned_dados[mapping[key]] = val
+                if key in mapping_empresas:
+                    dados_empresas[mapping_empresas[key]] = val
 
-            if not cleaned_dados:
-                return True
+            # Atualiza tabela empresas
+            if dados_empresas:
+                set_clause = ", ".join([f"{col} = %s" for col in dados_empresas.keys()])
+                params = list(dados_empresas.values()) + [empresa_id]
+                query = f"UPDATE empresas SET {set_clause} WHERE id = %s"
+                cursor.execute(query, params)
 
-            set_clause = ", ".join([f"{col} = %s" for col in cleaned_dados.keys()])
-            params = list(cleaned_dados.values()) + [empresa_id]
-            query = f"UPDATE empresas SET {set_clause} WHERE id = %s"
+            # Atualiza tabela empresa_departamento para a chave 'carteira' no departamentoId 2
+            if 'carteira' in dados:
+                cursor.execute("SELECT id FROM empresa_departamento WHERE empresaId = %s AND departamentoId = 2", (empresa_id,))
+                if cursor.fetchone():
+                    cursor.execute("UPDATE empresa_departamento SET carteira = %s WHERE empresaId = %s AND departamentoId = 2", (dados['carteira'], empresa_id))
+                else:
+                    cursor.execute("INSERT INTO empresa_departamento (empresaId, departamentoId, carteira) VALUES (%s, 2, %s)", (empresa_id, dados['carteira']))
 
-            cursor.execute(query, params)
             self.connection.commit()
             cursor.close()
             return True
         except Error as e:
+            self.connection.rollback()
             print(f"❌ Erro ao atualizar dados da empresa: {e}")
             return False
         finally:
@@ -259,27 +265,6 @@ class DatabaseHandler:
             return True
         except Error as e:
             print(f"❌ Erro ao atualizar lote: {e}")
-            return False
-        finally:
-            self.disconnect()
-
-
-    def atualizar_status_onvio(self, empresa_id, novo_status):
-        """
-        Atualiza o statusOnvio de uma empresa específica.
-        Valores comuns: 'A publicar', 'Publicado', 'Não publicado'
-        """
-        if not self.connect():
-            return False
-        try:
-            cursor = self.connection.cursor()
-            query = "UPDATE roboFgts SET statusOnvio = %s WHERE empresaId = %s"
-            cursor.execute(query, (novo_status, empresa_id))
-            self.connection.commit()
-            cursor.close()
-            return True
-        except Error as e:
-            print(f"❌ Erro ao atualizar statusOnvio: {e}")
             return False
         finally:
             self.disconnect()

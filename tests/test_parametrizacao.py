@@ -7,7 +7,7 @@ import pyperclip
 # Adiciona o diretório raiz ao path para permitir importações do src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.services.fgts_digital_site import localizar_parametros, localizar_competencia_inicial, localizar_competencia_final, localizar_desmarcar_sem_guia_emitida, localizar_itens_consignado, localizar_adicionar_a_guia, localizar_quadro_competencia, extrair_data_pagamento_guia
+from src.services.fgts_digital_site import localizar_parametros, localizar_competencia_inicial, localizar_competencia_final, localizar_desmarcar_sem_guia_emitida, localizar_itens_consignado, localizar_adicionar_a_guia, localizar_quadro_competencia, extrair_data_pagamento_guia, localizar_vencimento_debito
 from src.utils.automation import esperar, verificar_parada
 from src.services.fgts_digital_site import localizar_itens_para_guia
 
@@ -19,18 +19,25 @@ def test_fluxo_final():
     time.sleep(7)
     try:
         print("📁 Localizando parametrização...")
-        pos_parametrizacao = localizar_parametros()
-        pyautogui.click(pos_parametrizacao[0] - 630, pos_parametrizacao[1] + 20)
-        esperar(1.5, check_stop_callback)
+        pos_vencimento_debito = localizar_vencimento_debito()
+        pyautogui.click(pos_vencimento_debito[0] - 750, pos_vencimento_debito[1])
+        esperar(3, check_stop_callback)
+        verificar_parada(check_stop_callback)
+        pyperclip.copy("02/2026")
+        pyautogui.hotkey('ctrl', 'v')
+        pyautogui.press("enter")
+        esperar(3, check_stop_callback)
         verificar_parada(check_stop_callback)
 
-        pyautogui.click(pos_parametrizacao[0] - 190, pos_parametrizacao[1] + 20)
-        esperar(1.5, check_stop_callback)
+        pyautogui.click(pos_vencimento_debito[0] + 520, pos_vencimento_debito[1])
+        esperar(3, check_stop_callback)
+        verificar_parada(check_stop_callback)
+        pyperclip.copy("02/2026")
+        pyautogui.hotkey('ctrl', 'v')
+        pyautogui.press("enter")
+        esperar(2, check_stop_callback)
         verificar_parada(check_stop_callback)
 
-        pyautogui.click(pos_parametrizacao[0] + 90, pos_parametrizacao[1] + 20)
-        esperar(1.5, check_stop_callback)
-        verificar_parada(check_stop_callback)  
         # Localiza competencia inicial
 
 

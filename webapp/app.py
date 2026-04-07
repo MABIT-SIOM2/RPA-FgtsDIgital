@@ -8,6 +8,7 @@ from datetime import datetime
 import pandas as pd
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
+from fpdf import FPDF
 
 # Força UTF-8 no console do Windows para evitar erro 'charmap' com emojis nos logs
 if hasattr(sys.stdout, 'reconfigure'):
@@ -19,6 +20,27 @@ if hasattr(sys.stderr, 'reconfigure'):
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils.database_handler import DatabaseHandler
+
+class PDF(FPDF):
+    def header(self):
+        # Background no cabeçalho
+        self.set_fill_color(37, 99, 235) # Azul Primário Mabit (#2563eb)
+        self.rect(0, 0, 210, 30, 'F')
+        
+        self.set_font('Arial', 'B', 16)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 10, 'FGTS DIGITAL - RELATÓRIO DE CONSULTA', 0, 1, 'C')
+        
+        self.set_font('Arial', 'I', 10)
+        data_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
+        self.cell(0, 5, f'Gerado em: {data_hora}', 0, 1, 'C')
+        self.ln(10)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, f'Página {self.page_no()}/{{nb}}', 0, 0, 'C')
 
 app = Flask(__name__)
 CORS(app)
@@ -58,7 +80,7 @@ def get_groups():
     
     # Como não temos um método específico para grupos, vamos extrair dos dados
     companies = db.obter_empresas_pendentes()
-    groups = sorted(list(set(c.get('grupo') for c in companies if c.get('grupo'))))
+    groups = sorted(list(set(c.get('carteira') for c in companies if c.get('carteira'))))
     return jsonify(groups)
 
 @app.route('/api/update', methods=['POST'])
@@ -119,6 +141,8 @@ def batch_toggle_status():
         return jsonify({'success': True})
     else:
         return jsonify({'success': False, 'message': 'Erro ao atualizar em lote'}), 500
+
+
 
 @app.route('/api/upload-database', methods=['POST'])
 def upload_database():
@@ -214,10 +238,10 @@ def upload_database():
                 results['details'].append(f"Linha {index+2}: CNPJ {cnpj_raw} não localizado no cadastro de empresas.")
                 continue
             
-            # Sincroniza dados básicos da empresa (Grupo, Código, Razão)
+            # Sincroniza dados básicos da empresa (Carteira, Código, Razão)
             dados_empresa = {}
-            if 'GRUPO' in df.columns:
-                 dados_empresa['grupo'] = str(row.get('GRUPO', '')).strip()
+            if 'CARTEIRA' in df.columns:
+                 dados_empresa['carteira'] = str(row.get('CARTEIRA', '')).strip()
             if 'CODIGO' in df.columns:
                  dados_empresa['codigo'] = str(row.get('CODIGO', '')).strip()
             if 'NOME_EMPRESA' in df.columns or 'RAZAO_SOCIAL' in df.columns:
@@ -279,7 +303,7 @@ def export_report():
         
         # Filtra pelo grupo se fornecido
         if selected_group and selected_group != 'all':
-            df = df[df['grupo'] == selected_group]
+            df = df[df['carteira'] == selected_group]
             
         if df.empty:
              return jsonify({'success': False, 'message': f'Nenhuma empresa encontrada no grupo {selected_group}'}), 404
@@ -289,7 +313,7 @@ def export_report():
             'codigo': 'Código',
             'cnpj': 'CNPJ',
             'razao': 'Razão Social',
-            'grupo': 'Grupo',
+            'carteira': 'Carteira',
             'competenciaInicial': 'Comp. Inicial',
             'competenciaFinal': 'Comp. Final',
             'valorFgts': 'FGTS (Base)',
@@ -300,24 +324,16 @@ def export_report():
             'valorGuiaFgts13': 'Guia FGTS 13º',
             'valorGuiaConsignado': 'Guia Consignado',
             'totalGuia': 'Total Guia',
-            'status': '_status_num',
-            'statusOnvio': 'Status',
+            'status': 'Status',
             'vencimentoGuia': 'Vencimento'
         }
         
         # Filtra e renomeia apenas as colunas que existem no mapping
         df_export = df[list(column_mapping.keys())].rename(columns=column_mapping)
         
-        # Mapeia o status numérico para texto como fallback se statusOnvio estiver vazio
+        # Mapeia o status numérico para texto
         status_map = {0: 'Pendente', 1: 'A consultar', 2: 'Concluído', 3: 'Erro'}
-        df_export['Status'] = df_export['Status'].fillna('').replace('', None)
-        df_export['Status'] = df_export['Status'].where(
-            df_export['Status'].notna(),
-            df_export['_status_num'].map(status_map)
-        )
-        
-        # Remove a coluna auxiliar do status numérico
-        df_export.drop(columns=['_status_num'], inplace=True)
+        df_export['Status'] = df_export['Status'].map(status_map)
         
         # Cria um buffer de bytes para o arquivo Excel
         output = io.BytesIO()
@@ -340,6 +356,144 @@ def export_report():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'message': f"Erro ao exportar: {str(e)}"}), 500
+
+@app.route('/api/export-pdf', methods=['GET'])
+def export_pdf():
+    try:
+        selected_group = request.args.get('group')
+        db_config = get_db_config()
+        db = DatabaseHandler(db_config)
+        companies = db.obter_empresas_pendentes()
+        
+        if not companies:
+            return jsonify({'success': False, 'message': 'Nenhuma empresa encontrada para exportar'}), 404
+            
+        df = pd.DataFrame(companies)
+        if selected_group and selected_group != 'all':
+            df = df[df['carteira'] == selected_group]
+        
+        nome_grupo_display = selected_group if selected_group and selected_group != 'all' else 'Todos os Grupos'
+        
+        if df.empty:
+            return jsonify({'success': False, 'message': f'Nenhuma empresa encontrada para o grupo: {nome_grupo_display}'}), 404
+
+        # Mapeamento amigável
+        status_map = {0: 'Pendente', 1: 'A consultar', 2: 'Concluido', 3: 'Erro'}
+        df['status_txt'] = df['status'].map(status_map)
+
+        pdf = PDF()
+        pdf.alias_nb_pages()
+        pdf.add_page()
+        
+        # --- SUMÁRIO ---
+        pdf.set_font('Arial', 'B', 12)
+        pdf.set_text_color(37, 99, 235)
+        pdf.cell(0, 10, f'Relatório: {nome_grupo_display}', 0, 1)
+        pdf.set_font('Arial', 'B', 10)
+        pdf.cell(0, 10, 'Sumário de Resultados', 0, 1)
+        
+        total = len(df)
+        sucesso = len(df[df['status'] == 2])
+        erros = len(df[df['status'] == 3])
+        pendentes = total - sucesso - erros
+        
+        pdf.set_font('Arial', '', 10)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(47, 8, f'Total: {total}', 1, 0, 'C')
+        pdf.set_text_color(22, 101, 52) # Verde
+        pdf.cell(47, 8, f'Sucesso: {sucesso}', 1, 0, 'C')
+        pdf.set_text_color(153, 27, 27) # Vermelho
+        pdf.cell(47, 8, f'Erros: {erros}', 1, 0, 'C')
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(49, 8, f'Pendentes: {pendentes}', 1, 1, 'C')
+        pdf.ln(5)
+
+        # --- TABELA ---
+        pdf.set_font('Arial', 'B', 8)
+        pdf.set_fill_color(248, 250, 252) # Fundo Light Mabit (#f8fafc)
+        pdf.set_text_color(37, 99, 235) # Texto Azul Mabit
+        
+        # Colunas e Larguras (Total 190mm)
+        cols = [
+            ('Razão Social', 50),
+            ('CNPJ', 30),
+            ('Comp.', 15),
+            ('Total Base', 25),
+            ('Total Guia', 25),
+            ('Venc.', 20),
+            ('Status', 25)
+        ]
+        
+        for col, width in cols:
+            pdf.cell(width, 10, col, 1, 0, 'C', True)
+        pdf.ln()
+
+        pdf.set_font('Arial', '', 8)
+        pdf.set_text_color(0, 0, 0)
+        
+        fill = False
+        for _, row in df.iterrows():
+            # Razão Social (Trunca se for muito grande)
+            razao = str(row['razao'])[:25]
+            
+            pdf.cell(50, 8, razao, 1, 0, 'L', fill)
+            pdf.cell(30, 8, str(row['cnpj']), 1, 0, 'C', fill)
+            pdf.cell(15, 8, str(row['competenciaFinal'] or '-'), 1, 0, 'C', fill)
+            
+            # Formata moeda - Total Base
+            v_base = f"{float(row['totalBase'] or 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            pdf.cell(25, 8, v_base, 1, 0, 'R', fill)
+
+            # Formata moeda - Total Guia
+            v_guia = f"{float(row['totalGuia'] or 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            pdf.cell(25, 8, v_guia, 1, 0, 'R', fill)
+            
+            # Vencimento (Tenta formatar para BR se for ISO)
+            venc_raw = str(row['vencimentoGuia'] or '-')
+            venc = venc_raw
+            if '-' in venc_raw and len(venc_raw) >= 10:
+                try:
+                    # Se for YYYY-MM-DD
+                    parts = venc_raw.split(' ')[0].split('-')
+                    if len(parts) == 3:
+                        venc = f"{parts[2]}/{parts[1]}/{parts[0]}"
+                except:
+                    pass
+            
+            pdf.cell(20, 8, venc, 1, 0, 'C', fill)
+
+            # Status com cor
+            s = row['status']
+            if s == 2: pdf.set_text_color(22, 101, 52)
+            elif s == 3: pdf.set_text_color(153, 27, 27)
+            else: pdf.set_text_color(0, 0, 0)
+            
+            pdf.cell(25, 8, str(row['status_txt']), 1, 1, 'C', fill)
+            pdf.set_text_color(0, 0, 0)
+            fill = not fill
+
+        # Output
+        pdf_output = io.BytesIO()
+        # fpdf2 usa output() que retorna os bytes ou escreve no arquivo. 
+        # No fpdf2 moderno, podemos usar output(dest='S') ou output() dependendo da versão. 
+        # Vamos usar bytearray(pdf.output()) se for fpdf2.
+        pdf_bytes = pdf.output()
+        pdf_output.write(pdf_bytes)
+        pdf_output.seek(0)
+
+        nome_grupo = selected_group if selected_group and selected_group != 'all' else 'Geral'
+        filename = f"Relatorio_FGTS_{nome_grupo}_{datetime.now().strftime('%d_%m_%Y_%H%M')}.pdf"
+        
+        return send_file(
+            pdf_output,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f"Erro ao gerar PDF: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

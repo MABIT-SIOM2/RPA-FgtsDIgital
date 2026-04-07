@@ -1,9 +1,6 @@
-python-dotenv
 requests
 pandas
 openpyxl
-selenium
-webdriver-manager
 playwright
 pyautogui
 pyperclip
@@ -12,3 +9,4 @@ pillow
 mysql-connector-python
 flask
 flask-cors
+fpdf2

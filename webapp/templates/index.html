@@ -10,26 +10,18 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
-<body>
+<body class="modern-theme">
+    <div class="bg-glow"></div>
     <div class="app-container">
         <!-- Sidebar para Filtros -->
-        <aside class="sidebar">
+        <aside class="sidebar collapsed">
             <div class="sidebar-header">
                 <i data-lucide="layout-dashboard"></i>
                 <span>Gerenciador</span>
             </div>
 
             <nav class="sidebar-nav">
-                <div class="nav-section">
-                    <span class="section-title">Grupos</span>
-                    <ul id="group-list">
-                        <li class="active" data-group="all">
-                            <i data-lucide="layers"></i>
-                            <span>Todos os Grupos</span>
-                        </li>
-                        <!-- Grupos dinâmicos aqui -->
-                    </ul>
-                </div>
+                <!-- Outros filtros podem vir aqui -->
             </nav>
 
             <div class="sidebar-footer">
@@ -44,8 +36,15 @@
         <main class="main-content">
             <header class="main-header">
                 <div class="header-left">
-                    <h1>Empresas</h1>
-                    <p>Gerencie e visualize os dados das empresas cadastradas.</p>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <button id="sidebar-toggle" class="btn-icon" title="Menu">
+                            <i data-lucide="menu"></i>
+                        </button>
+                        <div>
+                            <h1>Empresas</h1>
+                            <p>Gerencie e visualize os dados das empresas cadastradas.</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="header-right">
                     <div class="search-box">
@@ -56,7 +55,11 @@
 
                     <button class="btn btn-warning" id="btn-export-report" onclick="exportReport()">
                         <i data-lucide="download"></i>
-                        Exportar Relatório
+                        Excel
+                    </button>
+                    <button class="btn btn-danger" id="btn-export-pdf" onclick="exportPDF()">
+                        <i data-lucide="file-text"></i>
+                        PDF
                     </button>
                     <button class="btn btn-success" id="btn-save-batch" onclick="saveBatchStatus()">
                         <i data-lucide="save"></i>
@@ -73,6 +76,17 @@
                     </button>
                 </div>
             </header>
+
+            <!-- Nova Barra de Grupos -->
+            <div class="groups-nav-wrapper">
+                <ul id="group-list" class="groups-nav">
+                    <li class="active" data-group="all">
+                        <i data-lucide="layers"></i>
+                        <span>Todas as Carteiras</span>
+                    </li>
+                    <!-- Grupos dinâmicos aqui -->
+                </ul>
+            </div>
 
             <!-- Grid de Estatísticas (Opcional) -->
             <section class="stats-grid">
@@ -101,14 +115,16 @@
                 <table id="company-table">
                     <thead>
                         <tr>
-                            <th style="width: 40px;">
-                                <input type="checkbox" id="select-all-companies" title="Selecionar Todas">
+                            <th style="width: 100px; text-align: center;" title="Consultar (FGTS Digital)">
+                                <span
+                                    style="font-size: 0.65rem; display: block; margin-bottom: 4px; line-height: 1.2;">Consultar
+                                    guia FGTS</span>
+                                <input type="checkbox" id="select-all-companies">
                             </th>
-                            <th>Código</th>
+
                             <th>CNPJ</th>
                             <th>Razão Social</th>
-                            <th>Grupo</th>
-                            <th>Comp. Inicial</th>
+                            <th>Carteira</th>
                             <th>Comp. Final</th>
                             <th>Valor FGTS (Base)</th>
                             <th>FGTS 13º (Base)</th>

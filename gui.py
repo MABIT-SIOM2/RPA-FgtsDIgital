@@ -8,7 +8,10 @@ import datetime
 import time
 import subprocess
 import webbrowser
-from src.bot_pyautogui import executar_consulta_em_lote, executar_consulta_individual, resource_path
+import webbrowser
+import atexit
+from src.bot_pyautogui import executar_consulta_em_lote, executar_consulta_individual
+from src.utils.automation import resource_path
 
 class BotGUI:
     def __init__(self, root):
@@ -16,6 +19,7 @@ class BotGUI:
         self.root.title("FGTS Digital RPA")
         self.root.geometry("700x650")
         self.root.resizable(True, True)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Variáveis de controle globais
         self.caminho_excel = tk.StringVar()
@@ -24,7 +28,7 @@ class BotGUI:
         self.nome_individual = tk.StringVar()
         self.codigo_individual = tk.StringVar()
         self.competencia_individual = tk.StringVar()
-        self.grupo_individual = tk.StringVar()
+        self.carteira_individual = tk.StringVar()
         
         # Variáveis MySQL
         self.db_host = tk.StringVar(value="mysql831.umbler.com")
@@ -35,13 +39,6 @@ class BotGUI:
         
         # Configurações por serviço
         self.servicos = {
-            "fgts_digital": {
-                "nome": "FGTS Digital",
-                "pasta": tk.StringVar(),
-                "ativo": tk.BooleanVar(value=True),
-                "intervalo": tk.StringVar(value="30"),
-                "prox_execucao": None
-            },
             "fgts_digital_site": {
                 "nome": "FGTS Digital Site",
                 "pasta": tk.StringVar(),
@@ -49,19 +46,13 @@ class BotGUI:
                 "intervalo": tk.StringVar(value="30"),
                 "prox_execucao": None
             },
-            "onvio": {
-                "nome": "ONVIO",
-                "pasta": tk.StringVar(),
-                "ativo": tk.BooleanVar(value=True),
-                "intervalo": tk.StringVar(value="30"),
-                "prox_execucao": None
-            }
         }
 
         self.is_running = False
         self.is_paused = False
         self.thread = None
         self.server_process = None
+        atexit.register(self.kill_server)
         self.config_file = "config_multi.json"
         
         # Configurar interface
@@ -87,27 +78,35 @@ class BotGUI:
                   foreground=[("selected", "#000000")],
                   expand=[("selected", [1, 1, 1, 0])]) # Expande levemente a aba selecionada
 
+    def kill_server(self):
+        if self.server_process:
+            try:
+                subprocess.run(['taskkill', '/F', '/T', '/PID', str(self.server_process.pid)], 
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except: pass
+            self.server_process = None
+
+    def on_closing(self):
+        if self.is_running:
+            if messagebox.askokcancel("Sair", "A automação está em execução. Deseja parar tudo e sair?"):
+                self.is_running = False
+                self.kill_server()
+                self.root.destroy()
+                os._exit(0)
+        else:
+            self.kill_server()
+            self.root.destroy()
+            os._exit(0)
+
     def salvar_config(self):
         """Salva as configurações atuais em um arquivo JSON"""
         config = {
             "excel_path": self.caminho_excel.get(),
-            "fgts_digital": {
-                "dest_path": self.servicos["fgts_digital"]["pasta"].get(),
-                "active": self.servicos["fgts_digital"]["ativo"].get(),
-                "interval": self.servicos["fgts_digital"]["intervalo"].get(),
-                "next_run": self.servicos["fgts_digital"]["prox_execucao"].isoformat() if self.servicos["fgts_digital"]["prox_execucao"] else None
-            },
             "fgts_digital_site": {
                 "dest_path": self.servicos["fgts_digital_site"]["pasta"].get(),
                 "active": self.servicos["fgts_digital_site"]["ativo"].get(),
                 "interval": self.servicos["fgts_digital_site"]["intervalo"].get(),
                 "next_run": self.servicos["fgts_digital_site"]["prox_execucao"].isoformat() if self.servicos["fgts_digital_site"]["prox_execucao"] else None
-            },
-            "onvio": {
-                "dest_path": self.servicos["onvio"]["pasta"].get(),
-                "active": self.servicos["onvio"]["ativo"].get(),
-                "interval": self.servicos["onvio"]["intervalo"].get(),
-                "next_run": self.servicos["onvio"]["prox_execucao"].isoformat() if self.servicos["onvio"]["prox_execucao"] else None
             },
             "mysql_config": {
                 "host": self.db_host.get(),
@@ -135,15 +134,6 @@ class BotGUI:
                     config = json.load(f)
                     self.caminho_excel.set(config.get("excel_path", ""))
                     
-                    fgts_digital_conf = config.get("fgts_digital", {})
-                    self.servicos["fgts_digital"]["pasta"].set(fgts_digital_conf.get("dest_path", ""))
-                    self.servicos["fgts_digital"]["ativo"].set(fgts_digital_conf.get("active", True))
-                    self.servicos["fgts_digital"]["intervalo"].set(fgts_digital_conf.get("interval", "30"))
-                    if fgts_digital_conf.get("next_run"):
-                        try:
-                            self.servicos["fgts_digital"]["prox_execucao"] = datetime.datetime.fromisoformat(fgts_digital_conf.get("next_run"))
-                        except: pass
-
                     fgts_digital_site_conf = config.get("fgts_digital_site", {})
                     self.servicos["fgts_digital_site"]["pasta"].set(fgts_digital_site_conf.get("dest_path", ""))
                     self.servicos["fgts_digital_site"]["ativo"].set(fgts_digital_site_conf.get("active", True))
@@ -153,21 +143,17 @@ class BotGUI:
                             self.servicos["fgts_digital_site"]["prox_execucao"] = datetime.datetime.fromisoformat(fgts_digital_site_conf.get("next_run"))
                         except: pass
 
-                    onvio_conf = config.get("onvio", {})
-                    self.servicos["onvio"]["pasta"].set(onvio_conf.get("dest_path", ""))
-                    self.servicos["onvio"]["ativo"].set(onvio_conf.get("active", True))
-                    self.servicos["onvio"]["intervalo"].set(onvio_conf.get("interval", "30"))
-                    if onvio_conf.get("next_run"):
-                        try:
-                            self.servicos["onvio"]["prox_execucao"] = datetime.datetime.fromisoformat(onvio_conf.get("next_run"))
-                        except: pass
+#                    if onvio_conf.get("next_run"):
+#                        try:
+#                            self.servicos["onvio"]["prox_execucao"] = datetime.datetime.fromisoformat(onvio_conf.get("next_run"))
+#                        except: pass
 
                     # Carregar dados individuais (opcional para facilitar re-teste)
                     self.cnpj_individual.set(config.get("cnpj_individual", ""))
                     self.nome_individual.set(config.get("nome_individual", ""))
                     self.codigo_individual.set(config.get("codigo_individual", ""))
                     self.competencia_individual.set(config.get("competencia_individual", ""))
-                    self.grupo_individual.set(config.get("grupo_individual", ""))
+                    self.carteira_individual.set(config.get("carteira_individual", ""))
 
                     # Carregar último modo usado se houver (opcional) ou manter padrão
                     self.modo_consulta.set(config.get("consulta_mode", "lote"))
@@ -261,7 +247,7 @@ class BotGUI:
                     self.codigo_individual.get(),
                     servico["pasta"].get(),
                     competencia=self.competencia_individual.get(),
-                    grupo=self.grupo_individual.get(),
+                    carteira=self.carteira_individual.get(),
                     tipo_consulta=servico["nome"],
                     check_stop_callback=lambda: not self.is_running
                 )
@@ -472,8 +458,8 @@ class BotGUI:
         tk.Label(self.frame_individual, text="Comp:").pack(side=tk.LEFT)
         tk.Entry(self.frame_individual, textvariable=self.competencia_individual, width=10).pack(side=tk.LEFT, padx=5)
 
-        tk.Label(self.frame_individual, text="Grupo:").pack(side=tk.LEFT)
-        tk.Entry(self.frame_individual, textvariable=self.grupo_individual, width=15).pack(side=tk.LEFT, padx=5)
+        tk.Label(self.frame_individual, text="Carteira:").pack(side=tk.LEFT)
+        tk.Entry(self.frame_individual, textvariable=self.carteira_individual, width=15).pack(side=tk.LEFT, padx=5)
 
         # Inicializa estado correto
         self.toggle_modo_consulta()
@@ -483,9 +469,7 @@ class BotGUI:
         notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         # Criar abas
-        self.criar_aba_servico(notebook, "fgts_digital", "FGTS Digital")
         self.criar_aba_servico(notebook, "fgts_digital_site", "FGTS Digital Site")
-        self.criar_aba_servico(notebook, "onvio", "ONVIO")
 
         # --- CONTROLES ---
         control_frame = tk.Frame(main_frame)
@@ -554,7 +538,6 @@ class BotGUI:
         
         # Validação Serviços
         servicos_para_executar = []
-        algum_agendado = False
 
         for key, servico in self.servicos.items():
             # Considera selecionado se tiver pasta definida
@@ -563,7 +546,6 @@ class BotGUI:
                     # Valida intervalo se estiver marcado como ativo
                     if servico["ativo"].get():
                         float(servico["intervalo"].get())
-                        algum_agendado = True
                 except ValueError:
                     messagebox.showerror("Erro", f"Intervalo inválido para {servico['nome']}!")
                     return
@@ -672,7 +654,6 @@ class BotGUI:
             # Se tem pasta, deve rodar imediatamente
             run_now_flags = {} 
 
-            tem_agendamento_ativo = False
 
             for key, servico in self.servicos.items():
                 if servico["pasta"].get():
@@ -683,7 +664,6 @@ class BotGUI:
                     # Mas a lógica abaixo vai tratar isso.
                     if servico["ativo"].get():
                         servico["prox_execucao"] = agora # Vai cair na verificação de tempo
-                        tem_agendamento_ativo = True
                         self.atualizar_label_prox(key, agora)
                     else:
                         servico["prox_execucao"] = None # Sem agendamento, só manual
@@ -763,7 +743,7 @@ class BotGUI:
                                 self.codigo_individual.get(),
                                 servico["pasta"].get(),
                                 competencia=self.competencia_individual.get(),
-                                grupo=self.grupo_individual.get(),
+                                carteira=self.carteira_individual.get(),
                                 tipo_consulta=servico["nome"],
                                 check_stop_callback=lambda: not self.is_running
                             )
@@ -881,6 +861,9 @@ class BotGUI:
                 # Inicia o processo do servidor
                 # cwd=base_dir garante que o Flask encontre templates/, static/ e config_multi.json
                 # DEVNULL evita deadlock por PIPE não consumido
+                # Mata o processo anterior se já estiver rodando
+                self.kill_server()
+                    
                 self.server_process = subprocess.Popen(
                     [sys.executable, app_path],
                     cwd=base_dir,
@@ -905,7 +888,7 @@ class BotGUI:
 
 def main():
     root = tk.Tk()
-    app = BotGUI(root)
+    BotGUI(root)
     root.mainloop()
 
 if __name__ == "__main__":
