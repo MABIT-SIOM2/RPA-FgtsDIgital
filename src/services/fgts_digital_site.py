@@ -546,7 +546,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         print("📅 Detectada competência 12/2025. Expandindo pesquisa para incluir 13º/2025.")
         competencia_fi = "13º/2025" # No site, usamos 13º/2025
     
-    
+    # Localizado somente como base para o clique nas caixas de competencia
     pos_vencimento_debito = localizar_vencimento_debito()
     
     if pos_vencimento_debito:
@@ -555,15 +555,17 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         verificar_parada(check_stop_callback)
         pyperclip.copy(competencia_in)
         pyautogui.hotkey('ctrl', 'v')
+        time.sleep(1)
         pyautogui.press("enter")
         esperar(3, check_stop_callback)
         verificar_parada(check_stop_callback)
 
-        pyautogui.click(pos_vencimento_debito[0] + 520, pos_vencimento_debito[1])
+        pyautogui.click(pos_vencimento_debito[0] - 520, pos_vencimento_debito[1])
         esperar(3, check_stop_callback)
         verificar_parada(check_stop_callback)
-        pyperclip.copy(competencia_fi)
+        pyperclip.copy(competencia_in)
         pyautogui.hotkey('ctrl', 'v')
+        time.sleep(1)
         pyautogui.press("enter")
         esperar(2, check_stop_callback)
         verificar_parada(check_stop_callback)

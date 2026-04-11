@@ -4,13 +4,8 @@ let currentGroup = 'all';
 let currentPage = 1;
 let itemsPerPage = 10;
 
-// Elementos do DOM
-const companyTbody = document.getElementById('company-tbody');
-const groupList = document.getElementById('group-list');
-const searchInput = document.getElementById('company-search');
-const loadingOverlay = document.getElementById('loading-overlay');
-const totalCount = document.getElementById('total-count');
-const pendingCount = document.getElementById('pending-count');
+// Elementos do DOM (Serão inicializados no DOMContentLoaded)
+let companyTbody, groupList, searchInput, loadingOverlay, totalCount, pendingCount;
 
 // Modal
 const editModal = document.getElementById('edit-modal');
@@ -18,6 +13,14 @@ const editForm = document.getElementById('edit-form');
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
+    // Inicializa elementos do DOM
+    companyTbody = document.getElementById('company-tbody');
+    groupList = document.getElementById('group-list');
+    searchInput = document.getElementById('company-search');
+    loadingOverlay = document.getElementById('loading-overlay');
+    totalCount = document.getElementById('total-count');
+    pendingCount = document.getElementById('pending-count');
+
     loadCompanies();
     loadGroups();
     setupGlobalEvents();
@@ -77,12 +80,24 @@ function renderGroupList() {
 }
 
 function filterAndDisplay() {
-    const searchTerm = searchInput.value.toLowerCase();
+    if (!searchInput) return;
+
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    // Normaliza termo de busca para CNPJ (remove caracteres não numéricos)
+    const searchTermDigits = searchTerm.replace(/\D/g, '');
 
     const filtered = allCompanies.filter(company => {
         const matchesGroup = currentGroup === 'all' || company.carteira === currentGroup;
-        const matchesSearch = company.razao.toLowerCase().includes(searchTerm) ||
-            company.cnpj.includes(searchTerm);
+        
+        // Dados da empresa para comparação
+        const razao = (company.razao || "").toLowerCase();
+        const cnpj = (company.cnpj || "");
+        const cnpjDigits = cnpj.replace(/\D/g, '');
+
+        const matchesSearch = razao.includes(searchTerm) ||
+            cnpj.includes(searchTerm) ||
+            (searchTermDigits !== '' && cnpjDigits.includes(searchTermDigits));
+
         return matchesGroup && matchesSearch;
     });
 
@@ -124,6 +139,37 @@ function formatCurrency(value) {
     }).format(numValue || 0);
 }
 
+// Funções de formatação de DATA
+function formatComp(dateVal) {
+    if (!dateVal || dateVal === '-') return '-';
+    try {
+        const date = new Date(dateVal);
+        if (isNaN(date.getTime())) return dateVal;
+        
+        // Usamos getUTC para evitar deslocamentos de fuso horário que mudam o mês
+        const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+        const year = date.getUTCFullYear();
+        return `${month}/${year}`;
+    } catch (e) {
+        return dateVal;
+    }
+}
+
+function formatDateBR(dateVal) {
+    if (!dateVal || dateVal === '-') return '-';
+    try {
+        const date = new Date(dateVal);
+        if (isNaN(date.getTime())) return dateVal;
+        
+        const day = date.getUTCDate().toString().padStart(2, '0');
+        const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+        const year = date.getUTCFullYear();
+        return `${day}/${month}/${year}`;
+    } catch (e) {
+        return dateVal;
+    }
+}
+
 function renderTable(companies) {
     if (companies.length === 0) {
         companyTbody.innerHTML = `<tr><td colspan="15" style="text-align: center; padding: 40px; color: var(--text-muted);">Nenhuma empresa encontrada.</td></tr>`;
@@ -156,7 +202,7 @@ function renderTable(companies) {
                 <td>${company.cnpj}</td>
                 <td>${company.razao}</td>
                 <td><span class="status-badge" style="background: #f1f5f9; color: var(--text-muted);">${company.carteira || 'N/A'}</span></td>
-                <td>${company.competenciaFinal || '-'}</td>
+                <td>${formatComp(company.competenciaFinal)}</td>
                 <td>${formatCurrency(company.valorFgts)}</td>
                 <td>${formatCurrency(company.valorFgts13)}</td>
                 <td>${formatCurrency(company.valorConsignado)}</td>
@@ -268,13 +314,24 @@ function setupGlobalEvents() {
     });
 
     document.getElementById('next-page').addEventListener('click', () => {
-        const totalItems = allCompanies.filter(c => {
-            const matchesGroup = currentGroup === 'all' || c.carteira === currentGroup;
-            const searchTerm = searchInput.value.toLowerCase();
-            return matchesGroup && (c.razao.toLowerCase().includes(searchTerm) || c.cnpj.includes(searchTerm));
+        // Usa a lógica centralizada de filtragem para contar total de itens filtrados
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const searchTermDigits = searchTerm.replace(/\D/g, '');
+
+        const totalFiltered = allCompanies.filter(company => {
+            const matchesGroup = currentGroup === 'all' || company.carteira === currentGroup;
+            const razao = (company.razao || "").toLowerCase();
+            const cnpj = (company.cnpj || "");
+            const cnpjDigits = cnpj.replace(/\D/g, '');
+
+            return matchesGroup && (
+                razao.includes(searchTerm) || 
+                cnpj.includes(searchTerm) || 
+                (searchTermDigits !== '' && cnpjDigits.includes(searchTermDigits))
+            );
         }).length;
 
-        if (currentPage * itemsPerPage < totalItems) {
+        if (currentPage * itemsPerPage < totalFiltered) {
             currentPage++;
             filterAndDisplay();
         }
@@ -422,9 +479,9 @@ function openEditModal(company) {
     document.getElementById('edit-razao').value = company.razao;
     document.getElementById('edit-cnpj').value = company.cnpj;
 
-    // Novos campos roboFgts
-    document.getElementById('edit-comp-ini').value = company.competenciaInicial || '';
-    document.getElementById('edit-comp-fim').value = company.competenciaFinal || '';
+    // Novos campos roboFgts (Formatados para exibição amigável)
+    document.getElementById('edit-comp-ini').value = formatComp(company.competenciaInicial);
+    document.getElementById('edit-comp-fim').value = formatComp(company.competenciaFinal);
     document.getElementById('edit-base-fgts').value = company.valorFgts || 0;
     document.getElementById('edit-base-fgts13').value = company.valorFgts13 || 0;
     document.getElementById('edit-base-consignado').value = company.valorConsignado || 0;

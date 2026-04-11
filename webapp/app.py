@@ -207,20 +207,34 @@ def upload_database():
             s = str(val).strip()
             if not s or s.lower() == 'nan' or s == '-': return ''
             
-            # Formatos comuns: "12/2025", "2025-12-01 00:00:00", "45657" (data excel serial)
+            # Limpeza: Remove timestamps residuais (ex: 2025-12-01 00:00:00 -> 2025-12-01)
+            s = s.split(' ')[0]
+            
             # Se já estiver em MM/AAAA
             if re.match(r'^\d{2}/\d{4}$', s): return s
             
+            # Se for apenas MM/AA (ex: 12/25), converte para MM/20AA
+            if re.match(r'^\d{2}/\d{2}$', s):
+                m, a = s.split('/')
+                return f"{m}/20{a}"
+
             try:
                 # Tenta converter via Pandas (datas ISO, etc)
-                dt = pd.to_datetime(s)
-                return dt.strftime('%m/%Y')
+                dt = pd.to_datetime(s, errors='coerce')
+                if pd.notna(dt):
+                    return dt.strftime('%m/%Y')
             except:
-                # Se for apenas MM/AA, tenta converter para MM/AAAA
-                if re.match(r'^\d{2}/\d{2}$', s):
-                    m, a = s.split('/')
-                    return f"{m}/20{a}"
-                return s
+                pass
+            
+            # Se falhou mas tem o formato numérico do Excel (ex: 45657)
+            if s.isdigit() and len(s) >= 5:
+                try:
+                    dt = pd.to_datetime(int(s), unit='D', origin='1899-12-30')
+                    return dt.strftime('%m/%Y')
+                except:
+                    pass
+
+            return s
 
         print(f"🔄 Iniciando processamento de {len(df)} linhas...")
 
@@ -252,9 +266,16 @@ def upload_database():
                 db.atualizar_empresa(empresa['id'], dados_empresa)
 
             # Mapeamento direcionado apenas para valores BASE e Competência
+            comp_ini = parse_comp(row.get('COMPETENCIA', row.get('COMP_INICIAL', row.get('COMPETENCIA_INICIAL', row.get('COMPETENC', row.get('COMP', ''))))))
+            comp_fim = parse_comp(row.get('COMPETENCIA_FINAL', row.get('COMP_FINAL', '')))
+
+            # Fallback: Se não tem comp_fim, usa a comp_ini
+            if not comp_fim:
+                comp_fim = comp_ini
+
             dados_update = {
-                'competenciaInicial': parse_comp(row.get('COMPETENC', row.get('COMP_INICIAL', row.get('COMPETENCIA_INICIAL', '')))),
-                'competenciaFinal': parse_comp(row.get('COMPETENCIA_FINAL', row.get('COMP_FINAL', ''))),
+                'competenciaInicial': comp_ini,
+                'competenciaFinal': comp_fim,
                 'valorFgts': parse_br_valor(row.get('VALOR_FGTS', row.get('VALOR_FGTS_BASE', 0))),
                 'valorFgts13': parse_br_valor(row.get('VALOR_FGTS13', row.get('FGTS_13_BASE', row.get('FGTS_13_O_BASE', 0)))),
                 'valorConsignado': parse_br_valor(row.get('VALOR_CONSIGNADO', row.get('CONSIGNADO_BASE', 0))),
@@ -271,6 +292,7 @@ def upload_database():
 
             if db.atualizar_dados_guia(empresa['id'], dados_update):
                 results['updated'] += 1
+                print(f"✅ Line {index+2}: {empresa['razao']} -> {comp_ini} (Saved as DATE)")
             else:
                 results['errors'] += 1
                 results['details'].append(f"Linha {index+2}: Erro técnico ao atualizar {empresa['razao']}.")

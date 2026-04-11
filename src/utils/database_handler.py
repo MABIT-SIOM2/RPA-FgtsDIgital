@@ -122,18 +122,39 @@ class DatabaseHandler:
                     continue
                 
                 db_col = mapping[key]
-                
-                if key == 'vencimentoGuia' and val and "/" in str(val):
-                    try:
-                        dia, mes, ano = str(val).split("/")
-                        cleaned_dados[db_col] = f"{ano}-{mes}-{dia}"
-                    except:
-                        cleaned_dados[db_col] = val
-                elif key in ['status', 'competenciaInicial', 'competenciaFinal', 'vencimentoGuia']:
+
+                # Lógica unificada para campos de DATA (DATE no MySQL)
+                if key in ['competenciaInicial', 'competenciaFinal', 'vencimentoGuia'] and val:
+                    val_str = str(val).strip()
+                    if val_str and val_str.lower() != 'none':
+                        try:
+                            # Formato DD/MM/AAAA ou MM/AAAA
+                            if "/" in val_str:
+                                parts = val_str.split("/")
+                                if len(parts) == 3: # DD/MM/AAAA
+                                    dia, mes, ano = parts
+                                    cleaned_dados[db_col] = f"{ano}-{mes.zfill(2)}-{dia.zfill(2)}"
+                                elif len(parts) == 2: # MM/AAAA
+                                    mes, ano = parts
+                                    cleaned_dados[db_col] = f"{ano}-{mes.zfill(2)}-01"
+                                else:
+                                    cleaned_dados[db_col] = val_str
+                            elif "-" in val_str and len(val_str) >= 10: # Já é ISO (AAAA-MM-DD...)
+                                cleaned_dados[db_col] = val_str.split(" ")[0]
+                            else:
+                                cleaned_dados[db_col] = val_str
+                        except:
+                            cleaned_dados[db_col] = val_str
+                    else:
+                        cleaned_dados[db_col] = None
+                elif key == 'status':
                     cleaned_dados[db_col] = val
                 else:
                     # Campos numéricos
-                    cleaned_dados[db_col] = clean_val(val)
+                    if key in ['statusOnvio']: # Texto
+                        cleaned_dados[db_col] = val
+                    else:
+                        cleaned_dados[db_col] = clean_val(val)
 
             if not cleaned_dados:
                 return True # Nada para atualizar
