@@ -51,6 +51,9 @@ def localizar_itens_para_guia():
 def localizar_btn_pesquisar():
     return localizar_imagem(resource_path("src/assets/site/btn_pesquisar.png"), confianca=0.7)
 
+def localizar_btn_pesquisar2():
+    return localizar_imagem(resource_path("src/assets/site/btn_pesquisar2.png"), confianca=0.7)
+
 def localizar_adicionar_a_guia():
     return localizar_imagem(resource_path("src/assets/site/btn_adicionar_a_guia.png"), confianca=0.7)
 
@@ -598,7 +601,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     # Localiza parametrização e desmarca
     print("📁 Localizando parametrização...")
     pos_parametrizacao = localizar_parametros()
-    pyautogui.click(pos_parametrizacao[0] - 630, pos_parametrizacao[1] + 20)
+    pyautogui.click(pos_parametrizacao[0] - 620, pos_parametrizacao[1] + 20)
     esperar(1.5, check_stop_callback)
     verificar_parada(check_stop_callback)
 
@@ -735,9 +738,9 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         pyautogui.scroll(-250)  
         verificar_parada(check_stop_callback)
 
-        pos_btn_pesquisar = localizar_btn_pesquisar()
+        pos_btn_pesquisar = localizar_btn_pesquisar2()
         if pos_btn_pesquisar:
-            pyautogui.click(pos_btn_pesquisar[0] + 200, pos_btn_pesquisar[1])
+            pyautogui.click(pos_btn_pesquisar[0] + 150, pos_btn_pesquisar[1])
             esperar(3, check_stop_callback)
 
         pos_itens_consignado = localizar_itens_consignado()
