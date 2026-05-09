@@ -601,7 +601,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     # Localiza parametrização e desmarca
     print("📁 Localizando parametrização...")
     pos_parametrizacao = localizar_parametros()
-    pyautogui.click(pos_parametrizacao[0] - 620, pos_parametrizacao[1] + 20)
+    pyautogui.click(pos_parametrizacao[0] - 610, pos_parametrizacao[1] + 20)
     esperar(1.5, check_stop_callback)
     verificar_parada(check_stop_callback)
 
