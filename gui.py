@@ -3,6 +3,24 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 import threading
 import sys
 import os
+import traceback
+
+log_file_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'error_crash.log')
+try:
+    log_file = open(log_file_path, 'a')
+    sys.stdout = log_file
+    sys.stderr = log_file
+except Exception:
+    pass
+
+def crash_handler(type, value, tb):
+    try:
+        with open(log_file_path, 'a') as f:
+            traceback.print_exception(type, value, tb, file=f)
+    except:
+        pass
+sys.excepthook = crash_handler
+
 import json
 import datetime
 import time
@@ -728,7 +746,8 @@ class BotGUI:
                                 'port': int(self.db_port.get()) if self.db_port.get().isdigit() else 3306,
                                 'user': self.db_user.get(),
                                 'password': self.db_pass.get(),
-                                'database': self.db_name.get()
+                                'database': self.db_name.get(),
+                                'use_pure': True
                             }
                             executar_consulta_em_lote(
                                 mysql_conf,

@@ -19,3 +19,9 @@ logs/
 # IDE
 .vscode/
 .idea/
+
+# Build and Dist
+dist/
+build/
+*.spec
+*.zip

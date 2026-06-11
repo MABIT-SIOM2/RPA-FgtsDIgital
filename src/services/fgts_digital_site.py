@@ -605,13 +605,18 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     esperar(1.5, check_stop_callback)
     verificar_parada(check_stop_callback)
 
-    pyautogui.click(pos_parametrizacao[0] - 190, pos_parametrizacao[1] + 20)
+    pyautogui.click(pos_parametrizacao[0] - 630, pos_parametrizacao[1] + 40)
     esperar(1.5, check_stop_callback)
     verificar_parada(check_stop_callback)
 
-    pyautogui.click(pos_parametrizacao[0] + 90, pos_parametrizacao[1] + 20)
+    pyautogui.click(pos_parametrizacao[0] - 40, pos_parametrizacao[1] + 20)
+    esperar(1.5, check_stop_callback)
+    verificar_parada(check_stop_callback)
+
+    pyautogui.click(pos_parametrizacao[0] + 210, pos_parametrizacao[1] + 20)
     esperar(1.5, check_stop_callback)
     verificar_parada(check_stop_callback)  
+    time.sleep(2)  
 
     # Scroll para baixo
     pyautogui.scroll(-100)
@@ -737,11 +742,12 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         
         pyautogui.scroll(-250)  
         verificar_parada(check_stop_callback)
-
+        time.sleep(2)
         pos_btn_pesquisar = localizar_btn_pesquisar2()
         if pos_btn_pesquisar:
             pyautogui.click(pos_btn_pesquisar[0] + 150, pos_btn_pesquisar[1])
             esperar(3, check_stop_callback)
+
 
         pos_itens_consignado = localizar_itens_consignado()
         if pos_itens_consignado:
@@ -945,7 +951,8 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         
         esperar(5, check_stop_callback)
         verificar_parada(check_stop_callback)
-        
+        #Espera abrir o pdf
+        time.sleep(10)
         print("🖨️ Iniciando processo de impressão (PDF)...")
         esperar(2, check_stop_callback)
         
@@ -954,6 +961,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         esperar(0.5, check_stop_callback)
 
         pyautogui.hotkey("ctrl", "p")
+        time.sleep(5)
         esperar(5, check_stop_callback) # Aumentado tempo para carregar diálogo do browser
         pyautogui.press("enter")
         esperar(3, check_stop_callback)
@@ -962,7 +970,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         # Normaliza o caminho para usar barras normais (evita erro com barras invertidas)
         pasta_destino_corrigida = os.path.abspath(pasta_destino).replace('/', '\\')
         pyperclip.copy(pasta_destino_corrigida)
-        time.sleep(1)
+        time.sleep(3)
 
         # corrigir competencia substituir barra po _
         competencia_corrigida = competencia.replace('/', '_')
@@ -1007,7 +1015,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
 
         time.sleep(3)
 
-        # fechar a guia
+        # fechar a guia para ir para proxima consulta
         pyautogui.hotkey("ctrl", "w")
         time.sleep(3)
     else:
@@ -1020,7 +1028,6 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     pyautogui.click(pos_btn_fgts_digital)
     verificar_parada(check_stop_callback)
     time.sleep(3)
-
 
     # Localiza botao trocar perfil
     pos_btn_trocar_perfil = localizar_btn_trocar_perfil()

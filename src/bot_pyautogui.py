@@ -88,6 +88,8 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
                     dados_empresas.append([str(cnpj), str(nome), str(codigo), carteira, str(competencia), None, None, 0.0, "", ""])
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Erro ao ler o arquivo: {e}")
         return
     

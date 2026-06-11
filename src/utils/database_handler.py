@@ -12,6 +12,9 @@ class DatabaseHandler:
         # Normalização de chaves para mysql.connector
         if self.config and 'pass' in self.config and 'password' not in self.config:
             self.config['password'] = self.config.pop('pass')
+            
+        if self.config:
+            self.config['use_pure'] = True
 
         self.connection = None
 
