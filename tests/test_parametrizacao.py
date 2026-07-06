@@ -18,29 +18,29 @@ def check_stop_callback():
 def test_fluxo_final():
     time.sleep(7)
     try:
-        # print("📁 Localizando parametrização...")
-        # pos_parametrizacao = localizar_parametros()
-        # pyautogui.click(pos_parametrizacao[0] - 610, pos_parametrizacao[1] + 20)
-        # esperar(1.5, check_stop_callback)
-        # verificar_parada(check_stop_callback)
+        print("📁 Localizando parametrização...")
+        pos_parametrizacao = localizar_parametros()
+        pyautogui.click(pos_parametrizacao[0] - 610, pos_parametrizacao[1] + 20)
+        esperar(1.5, check_stop_callback)
+        verificar_parada(check_stop_callback)
 
-        # pyautogui.click(pos_parametrizacao[0] - 630, pos_parametrizacao[1] + 40)
-        # esperar(1.5, check_stop_callback)
-        # verificar_parada(check_stop_callback)
+        pyautogui.click(pos_parametrizacao[0] - 630, pos_parametrizacao[1] + 40)
+        esperar(1.5, check_stop_callback)
+        verificar_parada(check_stop_callback)
 
-        # pyautogui.click(pos_parametrizacao[0] - 40, pos_parametrizacao[1] + 20)
-        # esperar(1.5, check_stop_callback)
-        # verificar_parada(check_stop_callback)
+        pyautogui.click(pos_parametrizacao[0] - 40, pos_parametrizacao[1] + 20)
+        esperar(1.5, check_stop_callback)
+        verificar_parada(check_stop_callback)
 
-        # pyautogui.click(pos_parametrizacao[0] + 210, pos_parametrizacao[1] + 20)
-        # esperar(1.5, check_stop_callback)
-        # verificar_parada(check_stop_callback)  
-        # time.sleep(2)
+        pyautogui.click(pos_parametrizacao[0] + 210, pos_parametrizacao[1] + 20)
+        esperar(1.5, check_stop_callback)
+        verificar_parada(check_stop_callback)  
+        time.sleep(2)
 
-        pos_btn_pesquisar = localizar_btn_pesquisar2()
-        if pos_btn_pesquisar:
-            pyautogui.click(pos_btn_pesquisar[0] + 150, pos_btn_pesquisar[1])
-            esperar(3, check_stop_callback)
+        # pos_btn_pesquisar = localizar_btn_pesquisar2()
+        # if pos_btn_pesquisar:
+        #     pyautogui.click(pos_btn_pesquisar[0] + 150, pos_btn_pesquisar[1])
+        #     esperar(3, check_stop_callback)
 
         try:
             print("📁 Localizando itens consignado...")

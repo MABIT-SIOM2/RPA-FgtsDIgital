@@ -23,9 +23,9 @@ from src.utils.database_handler import DatabaseHandler
 
 class PDF(FPDF):
     def header(self):
-        # Background no cabeçalho
+        # Background no cabeçalho (largura paisagem = 297mm)
         self.set_fill_color(37, 99, 235) # Azul Primário Mabit (#2563eb)
-        self.rect(0, 0, 210, 30, 'F')
+        self.rect(0, 0, 297, 30, 'F')
         
         self.set_font('Arial', 'B', 16)
         self.set_text_color(255, 255, 255)
@@ -403,7 +403,7 @@ def export_pdf():
         status_map = {0: 'Pendente', 1: 'A consultar', 2: 'Concluido', 3: 'Erro'}
         df['status_txt'] = df['status'].map(status_map)
 
-        pdf = PDF()
+        pdf = PDF(orientation='L', unit='mm', format='A4')  # Paisagem para mais espaço
         pdf.alias_nb_pages()
         pdf.add_page()
         
@@ -419,15 +419,17 @@ def export_pdf():
         erros = len(df[df['status'] == 3])
         pendentes = total - sucesso - erros
         
+        # Soma das colunas da tabela = 277mm (60+35+18+28+28+25+23+60)
+        # Dividido em 4 quadros: 69+69+69+70 = 277mm
         pdf.set_font('Arial', '', 10)
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(47, 8, f'Total: {total}', 1, 0, 'C')
+        pdf.cell(69, 8, f'Total: {total}', 1, 0, 'C')
         pdf.set_text_color(22, 101, 52) # Verde
-        pdf.cell(47, 8, f'Sucesso: {sucesso}', 1, 0, 'C')
+        pdf.cell(69, 8, f'Sucesso: {sucesso}', 1, 0, 'C')
         pdf.set_text_color(153, 27, 27) # Vermelho
-        pdf.cell(47, 8, f'Erros: {erros}', 1, 0, 'C')
+        pdf.cell(69, 8, f'Erros: {erros}', 1, 0, 'C')
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(49, 8, f'Pendentes: {pendentes}', 1, 1, 'C')
+        pdf.cell(70, 8, f'Pendentes: {pendentes}', 1, 1, 'C')
         pdf.ln(5)
 
         # --- TABELA ---
@@ -435,15 +437,16 @@ def export_pdf():
         pdf.set_fill_color(248, 250, 252) # Fundo Light Mabit (#f8fafc)
         pdf.set_text_color(37, 99, 235) # Texto Azul Mabit
         
-        # Colunas e Larguras (Total 190mm)
+        # Colunas e Larguras (Total ~277mm em paisagem A4 com margens de 10mm)
         cols = [
-            ('Razão Social', 50),
-            ('CNPJ', 30),
-            ('Comp.', 15),
-            ('Total Base', 25),
-            ('Total Guia', 25),
-            ('Venc.', 20),
-            ('Status', 25)
+            ('Razão Social', 60),
+            ('CNPJ', 35),
+            ('Comp.', 18),
+            ('Base', 28),
+            ('Guia', 28),
+            ('Venc.', 25),
+            ('Status', 23),
+            ('Observação', 60)
         ]
         
         for col, width in cols:
@@ -456,33 +459,43 @@ def export_pdf():
         fill = False
         for _, row in df.iterrows():
             # Razão Social (Trunca se for muito grande)
-            razao = str(row['razao'])[:25]
+            razao = str(row['razao'])[:30]
             
-            pdf.cell(50, 8, razao, 1, 0, 'L', fill)
-            pdf.cell(30, 8, str(row['cnpj']), 1, 0, 'C', fill)
-            pdf.cell(15, 8, str(row['competenciaFinal'] or '-'), 1, 0, 'C', fill)
+            pdf.cell(60, 8, razao, 1, 0, 'L', fill)
+            pdf.cell(35, 8, str(row['cnpj']), 1, 0, 'C', fill)
+            
+            # Formata Competência (MM/AAAA)
+            comp_raw = str(row['competenciaFinal'] or '-')
+            comp = comp_raw
+            if '-' in comp_raw and len(comp_raw) >= 10:
+                try:
+                    parts = comp_raw.split(' ')[0].split('-')
+                    if len(parts) == 3:
+                        comp = f"{parts[1]}/{parts[0]}"
+                except:
+                    pass
+            pdf.cell(18, 8, comp, 1, 0, 'C', fill)
             
             # Formata moeda - Total Base
             v_base = f"{float(row['totalBase'] or 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-            pdf.cell(25, 8, v_base, 1, 0, 'R', fill)
+            pdf.cell(28, 8, v_base, 1, 0, 'R', fill)
 
             # Formata moeda - Total Guia
             v_guia = f"{float(row['totalGuia'] or 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-            pdf.cell(25, 8, v_guia, 1, 0, 'R', fill)
+            pdf.cell(28, 8, v_guia, 1, 0, 'R', fill)
             
             # Vencimento (Tenta formatar para BR se for ISO)
             venc_raw = str(row['vencimentoGuia'] or '-')
             venc = venc_raw
             if '-' in venc_raw and len(venc_raw) >= 10:
                 try:
-                    # Se for YYYY-MM-DD
                     parts = venc_raw.split(' ')[0].split('-')
                     if len(parts) == 3:
                         venc = f"{parts[2]}/{parts[1]}/{parts[0]}"
                 except:
                     pass
             
-            pdf.cell(20, 8, venc, 1, 0, 'C', fill)
+            pdf.cell(25, 8, venc, 1, 0, 'C', fill)
 
             # Status com cor
             s = row['status']
@@ -490,8 +503,15 @@ def export_pdf():
             elif s == 3: pdf.set_text_color(153, 27, 27)
             else: pdf.set_text_color(0, 0, 0)
             
-            pdf.cell(25, 8, str(row['status_txt']), 1, 1, 'C', fill)
+            pdf.cell(23, 8, str(row['status_txt']), 1, 0, 'C', fill)
             pdf.set_text_color(0, 0, 0)
+            
+            # Obs (60mm de largura, cabe ~40 caracteres com fonte 8)
+            obs_texto = str(row.get('obs', '') or '')
+            if obs_texto.lower() == 'nan': obs_texto = ''
+            obs_texto = obs_texto[:45]
+            pdf.cell(60, 8, obs_texto, 1, 1, 'L', fill)
+            
             fill = not fill
 
         # Output
@@ -518,4 +538,4 @@ def export_pdf():
         return jsonify({'success': False, 'message': f"Erro ao gerar PDF: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

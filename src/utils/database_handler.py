@@ -60,7 +60,8 @@ class DatabaseHandler:
                     r.statusOnvio,
                     r.competenciaInicial,
                     r.competenciaFinal,
-                    r.vencimentoGuia
+                    r.vencimentoGuia,
+                    r.obs
                 FROM empresas e
                 INNER JOIN roboFgts r
                     ON r.empresaId = e.id
@@ -115,7 +116,8 @@ class DatabaseHandler:
                 'statusOnvio': 'statusOnvio',
                 'competenciaInicial': 'competenciaInicial',
                 'competenciaFinal': 'competenciaFinal',
-                'vencimentoGuia': 'vencimentoGuia'
+                'vencimentoGuia': 'vencimentoGuia',
+                'obs': 'obs'
             }
 
             # 2. Processar valores especiais (datas)
@@ -154,7 +156,7 @@ class DatabaseHandler:
                     cleaned_dados[db_col] = val
                 else:
                     # Campos numéricos
-                    if key in ['statusOnvio']: # Texto
+                    if key in ['statusOnvio', 'obs']: # Texto
                         cleaned_dados[db_col] = val
                     else:
                         cleaned_dados[db_col] = clean_val(val)

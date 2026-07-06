@@ -124,6 +124,9 @@ def localizar_quadro_competencia_13():
 def localizar_vencimento_debito():
     return localizar_imagem(resource_path("src/assets/site/vencimento_debito.png"), confianca=0.7, deve_quebrar=False)
 
+def localizar_sem_procuracao():
+    return localizar_imagem(resource_path("src/assets/site/sem_procuracao.png"), confianca=0.7, deve_quebrar=False)
+
 def extrair_dados_tabela_detalhada(check_stop_callback=None, alerta_ativo=False):
     """
     Copia o conteúdo da tela e extrai os dados da tabela detalhada usando Regex.
@@ -447,6 +450,19 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             esperar(5, check_stop_callback)
             verificar_parada(check_stop_callback)
 
+            #   Verifica se tem sem procuração
+            pos_sem_procuracao = localizar_sem_procuracao()
+            if pos_sem_procuracao:
+                print("⚠️ Empresa sem procuração, registrando no banco e pulando...")
+                if db_config and empresa_id_db:
+                    db = DatabaseHandler(db_config)
+                    db.atualizar_dados_guia(empresa_id_db, {'obs': 'Empresa sem procuração', 'status': 3})
+                
+                print("🔄 Atualizando a página (F5) para a próxima consulta...")
+                pyautogui.press("f5")
+                esperar(5, check_stop_callback)
+                return False
+
         except:
             print("ℹ️ Botão de cookies não encontrado ou já aceito.")
         print("👤 Trocando perfil para o CNPJ de procurado...")
@@ -482,6 +498,19 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         esperar(5, check_stop_callback)
         verificar_parada(check_stop_callback)
 
+        #   Verifica se tem sem procuração
+        pos_sem_procuracao = localizar_sem_procuracao()
+        if pos_sem_procuracao:
+            print("⚠️ Empresa sem procuração, registrando no banco e pulando...")
+            if db_config and empresa_id_db:
+                db = DatabaseHandler(db_config)
+                db.atualizar_dados_guia(empresa_id_db, {'obs': 'Empresa sem procuração', 'status': 3})
+            
+            print("🔄 Atualizando a página (F5) para a próxima consulta...")
+            pyautogui.press("f5")
+            esperar(5, check_stop_callback)
+            return False
+
     # Localiza gestão de guias
     print("📁 Localizando gestão de guias...")
     pos_gestao_guias = localizar_gestao_guias()
@@ -502,16 +531,12 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         if caminho_xlsx:
             marcar_status_validacao(caminho_xlsx, cnpj, "NÃO HÁ DÉBITOS")
         
-        if empresa_id_db and isinstance(caminho_xlsx, (str, dict)):
-            is_mysql_call = False
-            if isinstance(caminho_xlsx, dict):
-                is_mysql_call = True
-            elif isinstance(caminho_xlsx, str) and caminho_xlsx.startswith("mysql://"):
-                is_mysql_call = True
-
-            if is_mysql_call:
-                db = DatabaseHandler(caminho_xlsx)
-                db.marcar_status_erro(empresa_id_db, "NÃO HÁ DÉBITOS")
+        if empresa_id_db:
+            try:
+                db = DatabaseHandler(db_config if db_config else caminho_xlsx)
+                db.atualizar_dados_guia(empresa_id_db, {'status': 3, 'obs': 'Sem débitos para o período'})
+            except Exception as e_db:
+                print(f"❌ Erro ao registrar no banco: {e_db}")
         
         print("🔄 Resetando estado para a próxima consulta...")
         # Localiza botao fgts digital
@@ -798,6 +823,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     # logica de extração de dados
     print("📊 Iniciando extração de dados da tabela...")
     validacao_sucesso = False
+    obs_msg = ''  # Observação a ser gravada no banco
     try:
         # Redetecta o alerta na tela de resumo para ter certeza do modo de extração
         alerta_sem_consignado_presente = True if localizar_alerta_sem_consignado() else False
@@ -836,6 +862,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                 print(f"   Breakdown Extração: FGTS={valor_fgts_extraido}, Consignado={valor_consignado_extraido}")
                 status_final = 3  # Erro/Divergência
                 validacao_sucesso = False
+                obs_msg = 'Divergência de valor'
             else:
                 print(f"✅ VALORES CONFEREM! (Total extraído bate com totalBase do banco)")
                 
@@ -855,17 +882,22 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                                 data_valida = True
                                 print(f"✅ Data de vencimento ({data_venc_str}) válida para emissão.")
                             else:
+                                obs_msg = 'Data de vencimento inválida'
                                 print(f"❌ Data de vencimento ({data_venc_str}) INVÁLIDA: Dia deve ser 18, 19 ou 20.")
                         else:
+                            obs_msg = 'Vencimento fora do mês atual'
                             print(f"❌ Data de vencimento ({data_venc_str}) INVÁLIDA: Deve ser do mês/ano atual.")
                     except Exception as e:
+                        obs_msg = 'Erro ao processar data de vencimento'
                         print(f"⚠️ Erro ao processar data de vencimento: {e}")
                 else:
+                    obs_msg = "Data de vencimento não localizada"
                     print("❌ Data de vencimento não localizada para validação.")
                 
                 if data_valida:
                     status_final = 2  # Concluído
                     validacao_sucesso = True
+                    obs_msg = ''  # Sucesso: limpa observação
                 else:
                     status_final = 3  # Data incorreta
                     validacao_sucesso = False
@@ -889,7 +921,8 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                     'totalGuia': total_extraido_final,
                     'vencimentoGuia': resumo_extraido.get('vencimento_guia'),
                     'status': status_final,
-                    'statusOnvio': 'A publicar'
+                    'statusOnvio': 'A publicar',
+                    'obs': obs_msg
                 }
                 
                 # Fallback se os campos específicos vierem zerados
@@ -902,13 +935,19 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
                 db.atualizar_dados_guia(empresa_id_db, dados_db)
     except Exception as e:
         print(f"❌ Erro durante a extração/salvamento: {e}")
+        if empresa_id_db:
+            try:
+                db = DatabaseHandler(db_config if db_config else caminho_xlsx)
+                db.atualizar_dados_guia(empresa_id_db, {'status': 3, 'obs': f'Erro inesperado: {str(e)[:60]}'})
+            except Exception as e_db:
+                print(f"❌ Erro ao registrar falha no banco: {e_db}")
     else:
         # Se não houve exceção, mas o total foi 0, também devemos registrar o erro no banco
         if total_extraido_final == 0 and empresa_id_db:
              try:
                 print(f"🔌 Atualizando erro de extração (valor 0) no MySQL para empresa ID {empresa_id_db}...")
                 db = DatabaseHandler(db_config if db_config else caminho_xlsx)
-                db.marcar_status_erro(empresa_id_db, 3) # 3 = Erro/Falha
+                db.atualizar_dados_guia(empresa_id_db, {'status': 3, 'obs': 'Extração retornou valor zero'})
              except Exception as e_db:
                 print(f"❌ Erro ao registrar falha no banco: {e_db}")
 
