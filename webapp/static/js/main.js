@@ -1,6 +1,7 @@
 let allCompanies = [];
 let groups = [];
 let currentGroup = 'all';
+let currentCompetencia = ''; // '' = mais recente; 'MM/AAAA' = mês específico
 let currentPage = 1;
 let itemsPerPage = 10;
 
@@ -21,15 +22,68 @@ document.addEventListener('DOMContentLoaded', () => {
     totalCount = document.getElementById('total-count');
     pendingCount = document.getElementById('pending-count');
 
-    loadCompanies();
+    loadCompetencias(); // Carrega seletor de competências antes de tudo
     loadGroups();
     setupGlobalEvents();
 });
 
+async function loadCompetencias() {
+    try {
+        const response = await fetch('/api/competencias');
+        const competencias = await response.json();
+
+        const select = document.getElementById('competencia-select');
+        // Limpa opções exceto "Mais recente"
+        select.innerHTML = '<option value="">Mais recente</option>';
+
+        competencias.forEach(comp => {
+            const opt = document.createElement('option');
+            opt.value = comp;
+            opt.textContent = comp;
+            select.appendChild(opt);
+        });
+
+        // Define competência padrão (mais recente = primeira da lista)
+        if (competencias.length > 0) {
+            select.value = competencias[0]; // seleciona a mais recente
+            currentCompetencia = competencias[0];
+        }
+
+        atualizarBadgeCompetencia();
+        await loadCompanies(); // Carrega dados após saber a competência
+
+        select.addEventListener('change', () => {
+            currentCompetencia = select.value;
+            currentPage = 1;
+            atualizarBadgeCompetencia();
+            loadCompanies();
+        });
+    } catch (error) {
+        console.error('Erro ao carregar competências:', error);
+        await loadCompanies(); // Carrega mesmo sem seletor
+    }
+}
+
+function atualizarBadgeCompetencia() {
+    const badge = document.getElementById('competencia-badge');
+    if (!badge) return;
+    if (currentCompetencia) {
+        badge.textContent = currentCompetencia;
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.textContent = '';
+        badge.style.display = 'none';
+    }
+}
+
 async function loadCompanies() {
     showLoading(true);
     try {
-        const response = await fetch('/api/companies');
+        let url = '/api/companies';
+        if (currentCompetencia) {
+            url += `?competencia=${encodeURIComponent(currentCompetencia)}`;
+        }
+        const response = await fetch(url);
         allCompanies = await response.json();
         updateStats();
         filterAndDisplay();
@@ -280,7 +334,11 @@ function setupGlobalEvents() {
                 await fetch('/api/batch-toggle-status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: idsToUpdate, status: targetStatus })
+                    body: JSON.stringify({
+                        ids: idsToUpdate,
+                        status: targetStatus,
+                        competencia: currentCompetencia || null
+                    })
                 });
             }
 
@@ -400,7 +458,11 @@ async function saveBatchStatus() {
             await fetch('/api/batch-toggle-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selConsultaIds, status: 1 })
+                body: JSON.stringify({
+                    ids: selConsultaIds,
+                    status: 1,
+                    competencia: currentCompetencia || null
+                })
             });
         }
         
@@ -408,7 +470,11 @@ async function saveBatchStatus() {
             await fetch('/api/batch-toggle-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: unselConsultaIds, status: 0 })
+                body: JSON.stringify({
+                    ids: unselConsultaIds,
+                    status: 0,
+                    competencia: currentCompetencia || null
+                })
             });
         }
 
@@ -461,7 +527,11 @@ async function updateCompanyStatus(id, status) {
         await fetch('/api/toggle-status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ empresa_id: id, status: status })
+            body: JSON.stringify({
+                empresa_id: id,
+                status: status,
+                competencia: currentCompetencia || null
+            })
         });
     } catch (error) {
         console.error('Erro ao atualizar status:', error);
@@ -557,9 +627,10 @@ async function exportReport() {
 
     try {
         let exportUrl = '/api/export';
-        if (currentGroup && currentGroup !== 'all') {
-            exportUrl += `?group=${encodeURIComponent(currentGroup)}`;
-        }
+        const params = new URLSearchParams();
+        if (currentGroup && currentGroup !== 'all') params.set('group', currentGroup);
+        if (currentCompetencia) params.set('competencia', currentCompetencia);
+        if (params.toString()) exportUrl += '?' + params.toString();
         const response = await fetch(exportUrl);
 
         if (!response.ok) {
@@ -612,9 +683,10 @@ async function exportPDF() {
 
     try {
         let exportUrl = '/api/export-pdf';
-        if (currentGroup && currentGroup !== 'all') {
-            exportUrl += `?group=${encodeURIComponent(currentGroup)}`;
-        }
+        const params = new URLSearchParams();
+        if (currentGroup && currentGroup !== 'all') params.set('group', currentGroup);
+        if (currentCompetencia) params.set('competencia', currentCompetencia);
+        if (params.toString()) exportUrl += '?' + params.toString();
         const response = await fetch(exportUrl);
 
         if (!response.ok) {

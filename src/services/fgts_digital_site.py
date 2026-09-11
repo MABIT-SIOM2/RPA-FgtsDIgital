@@ -403,7 +403,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         print("🔑 Localizando botão Entrar com gov.br...")
         pos_btn_entar_gov = localizar_btn_entrar_gov()
         pyautogui.click(pos_btn_entar_gov)
-        esperar(9, check_stop_callback)
+        esperar(5, check_stop_callback)
         verificar_parada(check_stop_callback)
 
         # Localiza o botão de login com certificado digital
@@ -440,7 +440,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             pyautogui.click(pos_input_cnpj)
             time.sleep(3)
      
-            pyautogui.write(cnpj, interval=0.1)
+            pyautogui.write(cnpj, interval=0.4)
             verificar_parada(check_stop_callback)
 
             print(" Clicando em Definir para avançar...")
@@ -495,7 +495,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         # Localiza e clica no botão definir para prosseguir
         pos_btn_definir = localizar_btn_definir()
         pyautogui.click(pos_btn_definir)
-        esperar(5, check_stop_callback)
+        esperar(3, check_stop_callback)
         verificar_parada(check_stop_callback)
 
         #   Verifica se tem sem procuração
@@ -508,14 +508,14 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             
             print("🔄 Atualizando a página (F5) para a próxima consulta...")
             pyautogui.press("f5")
-            esperar(5, check_stop_callback)
+            esperar(3, check_stop_callback)
             return False
 
     # Localiza gestão de guias
     print("📁 Localizando gestão de guias...")
     pos_gestao_guias = localizar_gestao_guias()
     pyautogui.click(pos_gestao_guias)
-    esperar(5, check_stop_callback)
+    esperar(3, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     # Guia parametrizada, mouse já está na posição certa, apenas clica
@@ -523,7 +523,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     pyautogui.click(pos_gestao_guias)
     esperar(3, check_stop_callback)
     verificar_parada(check_stop_callback)
-    time.sleep(3)
+    time.sleep(2)
 
     pos_nao_ha_debitos = localizar_nao_ha_debitos()
     if pos_nao_ha_debitos:
@@ -563,7 +563,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     pos_btn_ajuda = localizar_btn_ajuda()
     if pos_btn_ajuda:
         pyautogui.moveTo(pos_btn_ajuda)
-        esperar(3, check_stop_callback)
+        esperar(2, check_stop_callback)
         verificar_parada(check_stop_callback)
 
     # Lógica para garantir que 12/2025 e 13º/2025 sejam extraídos juntos
@@ -579,17 +579,17 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     
     if pos_vencimento_debito:
         pyautogui.click(pos_vencimento_debito[0] - 750, pos_vencimento_debito[1])
-        esperar(3, check_stop_callback)
+        esperar(2, check_stop_callback)
         verificar_parada(check_stop_callback)
         pyperclip.copy(competencia_in)
         pyautogui.hotkey('ctrl', 'v')
         time.sleep(1)
         pyautogui.press("enter")
-        esperar(3, check_stop_callback)
+        esperar(2, check_stop_callback)
         verificar_parada(check_stop_callback)
 
         pyautogui.click(pos_vencimento_debito[0] - 520, pos_vencimento_debito[1])
-        esperar(3, check_stop_callback)
+        esperar(2, check_stop_callback)
         verificar_parada(check_stop_callback)
         pyperclip.copy(competencia_in)
         pyautogui.hotkey('ctrl', 'v')
@@ -627,31 +627,31 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     print("📁 Localizando parametrização...")
     pos_parametrizacao = localizar_parametros()
     pyautogui.click(pos_parametrizacao[0] - 610, pos_parametrizacao[1] + 20)
-    esperar(1.5, check_stop_callback)
+    esperar(1, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     pyautogui.click(pos_parametrizacao[0] - 630, pos_parametrizacao[1] + 40)
-    esperar(1.5, check_stop_callback)
+    esperar(1, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     pyautogui.click(pos_parametrizacao[0] - 40, pos_parametrizacao[1] + 20)
-    esperar(1.5, check_stop_callback)
+    esperar(1, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     pyautogui.click(pos_parametrizacao[0] + 210, pos_parametrizacao[1] + 20)
-    esperar(1.5, check_stop_callback)
+    esperar(1, check_stop_callback)
     verificar_parada(check_stop_callback)  
     time.sleep(2)  
 
     # Scroll para baixo
     pyautogui.scroll(-100)
-    esperar(2, check_stop_callback)
+    esperar(1, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     # localizar botão pesquisar
     pos_btn_pesquisar = localizar_btn_pesquisar()
     pyautogui.click(pos_btn_pesquisar[0] + 200, pos_btn_pesquisar[1])
-    esperar(4, check_stop_callback)
+    esperar(3, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     # Localizar alerta de item nao encontrado
@@ -668,18 +668,18 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     # localizar itens para guia (aqui é selecionado todas as guias)
     pos_itens_para_guia = localizar_itens_para_guia()
     pyautogui.click(pos_itens_para_guia[0] - 805, pos_itens_para_guia[1] - 15)
-    esperar(4, check_stop_callback)
+    esperar(2, check_stop_callback)
     verificar_parada(check_stop_callback)
     
     # localizar botão adicionar a guia
     pos_btn_adicionar_a_guia = localizar_adicionar_a_guia()
     pyautogui.click(pos_btn_adicionar_a_guia)
-    esperar(4, check_stop_callback)
+    esperar(2, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     # Scroll para baixo para aparecer o botao avançar
     pyautogui.scroll(-300)
-    esperar(4, check_stop_callback)
+    esperar(2, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     # Adicionar lógica para acionar scroll para baixo até identificar o botão avançar

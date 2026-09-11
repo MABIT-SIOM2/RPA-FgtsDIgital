@@ -97,12 +97,10 @@ class BotGUI:
                   expand=[("selected", [1, 1, 1, 0])]) # Expande levemente a aba selecionada
 
     def kill_server(self):
-        if self.server_process:
-            try:
-                subprocess.run(['taskkill', '/F', '/T', '/PID', str(self.server_process.pid)], 
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except: pass
-            self.server_process = None
+        # O servidor agora roda como thread daemon — encerra automaticamente com o processo principal.
+        # Mantemos o método para compatibilidade com o atexit e on_closing.
+        self.server_process = None
+        self._flask_running = False
 
     def on_closing(self):
         if self.is_running:
@@ -869,39 +867,76 @@ class BotGUI:
 
         
     def iniciar_servidor_web(self):
-        """Inicia o servidor Flask em uma thread separada e abre o navegador"""
+        """Inicia o servidor Flask em uma thread separada e abre o navegador.
+        
+        IMPORTANTE: Não usa subprocess.Popen([sys.executable, ...]) pois dentro do
+        executável PyInstaller sys.executable aponta para o próprio .exe, o que causaria
+        a abertura de uma nova janela do programa. O Flask é importado e rodado diretamente
+        como thread daemon no mesmo processo.
+        """
+        # Se o servidor já está rodando, apenas abre o navegador
+        if getattr(self, '_flask_running', False):
+            self.log("🌐 Servidor já ativo. Abrindo navegador...")
+            webbrowser.open("http://127.0.0.1:5001")
+            return
+
         def run_server():
             try:
-                self.log("🌐 Iniciando servidor do dashboard (webapp/app.py)...")
-                # Caminho absoluto para o app.py e diretório raiz do projeto
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-                app_path = os.path.join(base_dir, 'webapp', 'app.py')
-                
-                # Inicia o processo do servidor
-                # cwd=base_dir garante que o Flask encontre templates/, static/ e config_multi.json
-                # DEVNULL evita deadlock por PIPE não consumido
-                # Mata o processo anterior se já estiver rodando
-                self.kill_server()
-                    
-                self.server_process = subprocess.Popen(
-                    [sys.executable, app_path],
-                    cwd=base_dir,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                
-                self.log("✅ Servidor web iniciado! Aguardando 3 segundos para abrir o navegador...")
-                time.sleep(3)
-                webbrowser.open("http://127.0.0.1:5000")
-                
-                # Monitora a saída se necessário (opcional)
-                # stdout, stderr = self.server_process.communicate()
-                
+                self.log("🌐 Iniciando servidor do dashboard...")
+
+                # Resolve o diretório base: dentro do .exe é sys._MEIPASS, em dev é o diretório do script
+                if getattr(sys, 'frozen', False):
+                    base_dir = sys._MEIPASS
+                    # Garante que _MEIPASS esteja no path ANTES de importar webapp.app,
+                    # pois app.py faz 'from src.utils.database_handler import DatabaseHandler'
+                    if base_dir not in sys.path:
+                        sys.path.insert(0, base_dir)
+                else:
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+                # Caminhos explícitos para templates e static dentro do bundle
+                template_folder = os.path.join(base_dir, 'webapp', 'templates')
+                static_folder   = os.path.join(base_dir, 'webapp', 'static')
+
+                self.log(f"📂 Template dir: {template_folder}")
+                self.log(f"📂 Static dir:   {static_folder}")
+
+                # Importa o app Flask existente e reconfigura os caminhos para o bundle
+                # (não cria um novo app para evitar conflito de endpoints duplicados)
+                import webapp.app as webapp_module
+                flask_app = webapp_module.app
+                flask_app.template_folder = template_folder
+                flask_app.static_folder   = static_folder
+
+                self._flask_running = True
+                self.log("✅ Servidor web iniciado! Abrindo navegador em 2 segundos...")
+
+                # Abre o navegador numa thread auxiliar enquanto o Flask sobe
+                def abrir_browser():
+                    time.sleep(2)
+                    webbrowser.open("http://127.0.0.1:5001")
+
+                threading.Thread(target=abrir_browser, daemon=True).start()
+
+                # Bloqueia a thread rodando o servidor (use_reloader=False obrigatório em threads)
+                flask_app.run(host='127.0.0.1', port=5001, debug=False,
+                              use_reloader=False, threaded=True)
+
             except Exception as e:
+                self._flask_running = False
+                tb_str = traceback.format_exc()
                 self.log(f"❌ Erro ao iniciar servidor web: {e}")
+                self.log(tb_str)
+                # Grava no arquivo de crash também (stdout pode estar redirecionado)
+                try:
+                    with open(log_file_path, 'a') as _lf:
+                        _lf.write(f"\n[Dashboard Error]\n{tb_str}\n")
+                except Exception:
+                    pass
                 messagebox.showerror("Erro", f"Não foi possível iniciar o servidor web:\n{e}")
 
-        # Executa em thread para não travar a GUI
+
+        # Executa em thread daemon para não travar a GUI e encerrar junto com o processo
         thread_web = threading.Thread(target=run_server, daemon=True)
         thread_web.start()
 

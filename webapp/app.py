@@ -17,7 +17,15 @@ if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 # Adiciona o diretório raiz ao path para importar DatabaseHandler
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Dentro do bundle PyInstaller, __file__ é _MEIPASS/webapp/app.py → subimos um nível para _MEIPASS
+if getattr(sys, 'frozen', False):
+    # Modo executável: adiciona _MEIPASS ao path
+    _app_root = sys._MEIPASS
+else:
+    # Modo desenvolvimento: sobe um nível a partir de webapp/
+    _app_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _app_root not in sys.path:
+    sys.path.insert(0, _app_root)
 
 from src.utils.database_handler import DatabaseHandler
 
@@ -47,13 +55,51 @@ CORS(app)
 
 # Carrega as configurações do MySQL do arquivo config_multi.json
 def get_db_config():
-    config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config_multi.json'))
-    with open(config_path, 'r') as f:
-        config = json.load(f)
-    db_config = config.get('mysql_config').copy()
-    if 'pass' in db_config:
-        db_config['password'] = db_config.pop('pass')
-    return db_config
+    """Busca config_multi.json em múltiplos locais para suportar tanto o
+    executável PyInstaller (COLLECT) quanto o ambiente de desenvolvimento.
+
+    Ordem de busca:
+    1. Ao lado do .exe (usuário pode editar manualmente)
+    2. Dentro de _internal / _MEIPASS (cópia embutida no bundle)
+    3. Raiz do projeto (desenvolvimento)
+    """
+    if getattr(sys, 'frozen', False):
+        # Modo executável PyInstaller
+        candidate_dirs = [
+            os.path.dirname(sys.executable),  # pasta raiz do dist (ao lado do .exe)
+            sys._MEIPASS,                      # _internal (onde datas '.' são copiados)
+        ]
+    else:
+        # Modo desenvolvimento
+        candidate_dirs = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), '..')),
+        ]
+
+    for base in candidate_dirs:
+        config_path = os.path.join(base, 'config_multi.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            db_config = config.get('mysql_config').copy()
+            if 'pass' in db_config:
+                db_config['password'] = db_config.pop('pass')
+            return db_config
+
+    raise FileNotFoundError(
+        f"config_multi.json não encontrado. Locais verificados: {candidate_dirs}"
+    )
+
+# Helper: converte 'MM/AAAA' para ISO 'AAAA-MM-01'
+def competencia_para_iso(comp_str):
+    if not comp_str:
+        return None
+    s = str(comp_str).strip()
+    if '/' in s:
+        parts = s.split('/')
+        if len(parts) == 2:
+            mes, ano = parts
+            return f"{ano}-{mes.zfill(2)}-01"
+    return s if s else None
 
 @app.route('/')
 def index():
@@ -61,24 +107,32 @@ def index():
 
 @app.route('/api/companies', methods=['GET'])
 def get_companies():
+    """Retorna empresas filtradas por competência.
+    ?competencia=MM/AAAA → filtra pelo mês específico.
+    Sem parâmetro → retorna a competência mais recente de cada empresa.
+    """
+    comp_param = request.args.get('competencia')  # ex: '09/2026'
+    comp_iso = competencia_para_iso(comp_param)     # ex: '2026-09-01'
+
     db_config = get_db_config()
     db = DatabaseHandler(db_config)
-    
-    # Vamos usar obter_empresas_pendentes como base, mas para o dashboard
-    # talvez queiramos TODAS ou um subconjunto. Como obter_empresas_pendentes
-    # já tem o JOIN com roboFgts, vamos usar ela.
-    # Nota: Se r.status = 0 são apenas pendentes. No dashboard podemos querer mais.
-    # Por enquanto, mantemos a lógica do DatabaseHandler.
-    
-    companies = db.obter_empresas_pendentes()
+    companies = db.obter_empresas_pendentes(competencia=comp_iso)
     return jsonify(companies)
+
+@app.route('/api/competencias', methods=['GET'])
+def get_competencias():
+    """Retorna lista de competências disponíveis no banco, formato MM/AAAA, ordem decrescente."""
+    db_config = get_db_config()
+    db = DatabaseHandler(db_config)
+    competencias = db.obter_competencias_disponiveis()
+    return jsonify(competencias)
 
 @app.route('/api/groups', methods=['GET'])
 def get_groups():
     db_config = get_db_config()
     db = DatabaseHandler(db_config)
     
-    # Como não temos um método específico para grupos, vamos extrair dos dados
+    # Extrai carteiras da competência mais recente
     companies = db.obter_empresas_pendentes()
     groups = sorted(list(set(c.get('carteira') for c in companies if c.get('carteira'))))
     return jsonify(groups)
@@ -111,13 +165,14 @@ def toggle_status():
     data = request.json
     empresa_id = data.get('empresa_id')
     novo_status = data.get('status')
+    comp_param = data.get('competencia')  # ex: '09/2026' (opcional)
     
     if empresa_id is None or novo_status is None:
         return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
         
     db_config = get_db_config()
     db = DatabaseHandler(db_config)
-    success = db.toggle_empresa_status(empresa_id, novo_status)
+    success = db.toggle_empresa_status(empresa_id, novo_status, competencia=comp_param)
     
     if success:
         return jsonify({'success': True})
@@ -129,13 +184,14 @@ def batch_toggle_status():
     data = request.json
     ids = data.get('ids')
     novo_status = data.get('status')
+    comp_param = data.get('competencia')  # ex: '09/2026' (opcional)
     
     if not ids or novo_status is None:
         return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
         
     db_config = get_db_config()
     db = DatabaseHandler(db_config)
-    success = db.atualizar_status_lote(ids, novo_status)
+    success = db.atualizar_status_lote(ids, novo_status, competencia=comp_param)
     
     if success:
         return jsonify({'success': True})
@@ -310,12 +366,14 @@ def upload_database():
 @app.route('/api/export', methods=['GET'])
 def export_report():
     try:
-        # Pega o grupo do parâmetro da query
+        # Pega o grupo e a competência dos parâmetros da query
         selected_group = request.args.get('group')
+        comp_param = request.args.get('competencia')  # ex: '09/2026'
+        comp_iso = competencia_para_iso(comp_param)
         
         db_config = get_db_config()
         db = DatabaseHandler(db_config)
-        companies = db.obter_empresas_pendentes()
+        companies = db.obter_empresas_pendentes(competencia=comp_iso)
         
         if not companies:
             return jsonify({'success': False, 'message': 'Nenhuma empresa encontrada para exportar'}), 404
@@ -383,9 +441,11 @@ def export_report():
 def export_pdf():
     try:
         selected_group = request.args.get('group')
+        comp_param = request.args.get('competencia')  # ex: '09/2026'
+        comp_iso = competencia_para_iso(comp_param)
         db_config = get_db_config()
         db = DatabaseHandler(db_config)
-        companies = db.obter_empresas_pendentes()
+        companies = db.obter_empresas_pendentes(competencia=comp_iso)
         
         if not companies:
             return jsonify({'success': False, 'message': 'Nenhuma empresa encontrada para exportar'}), 404
@@ -538,4 +598,12 @@ def export_pdf():
         return jsonify({'success': False, 'message': f"Erro ao gerar PDF: {str(e)}"}), 500
 
 if __name__ == '__main__':
+    # Executa migration de schema na inicialização (idempotente)
+    try:
+        _db_config = get_db_config()
+        _db = DatabaseHandler(_db_config)
+        _db.executar_migration()
+    except Exception as _e:
+        print(f"⚠️ Não foi possível executar migration: {_e}")
+
     app.run(debug=True, port=5001)

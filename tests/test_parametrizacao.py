@@ -51,9 +51,7 @@ def test_fluxo_final():
         except Exception as e:
             print(f"⚠️ Erro ao extrair ou salvar data de pagamento: {e}")
         
-
-        
-           
+   
     except Exception as e:
         print(f"💥 Erro inesperado: {e}")
 
