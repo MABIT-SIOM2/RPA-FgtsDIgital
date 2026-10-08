@@ -440,7 +440,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             pyautogui.click(pos_input_cnpj)
             time.sleep(3)
      
-            pyautogui.write(cnpj, interval=0.4)
+            pyautogui.write(cnpj, interval=0.1)
             verificar_parada(check_stop_callback)
 
             print(" Clicando em Definir para avançar...")
