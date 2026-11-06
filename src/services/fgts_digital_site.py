@@ -28,7 +28,7 @@ def localizar_guia_parametrizada():
     return localizar_imagem(resource_path("src/assets/site/guia_parametrizada.png"), confianca=0.7)
 
 def localizar_gestao_guias():
-    return localizar_imagem(resource_path("src/assets/site/gestao_guias.png"), confianca=0.7)
+    return localizar_imagem(resource_path("src/assets/site/gestao_guias.png"), tentativas=10, confianca=0.7)
 
 def localizar_btn_aceitar_cookies():
     return localizar_imagem(resource_path("src/assets/site/btn_aceitar_cookies.png"), confianca=0.7)
@@ -82,10 +82,10 @@ def localizar_confirmar_sobreescrever():
     return localizar_imagem(resource_path("src/assets/arquivo/confirmar_sobreescrever.png"), confianca=0.7)
 
 def localizar_alerta_item_nao_encontrado():
-    return localizar_imagem(resource_path("src/assets/site/alerta_item_nao_encontrado.png"), tentativas=4, confianca=0.7, deve_quebrar=False)
+    return localizar_imagem(resource_path("src/assets/site/alerta_item_nao_encontrado.png"), tentativas=5, confianca=0.7, deve_quebrar=False)
 
 def localizar_alerta_sem_consignado():
-    return localizar_imagem(resource_path("src/assets/site/alerta_sem_consignado.png"), tentativas=5, confianca=0.7, deve_quebrar=False)
+    return localizar_imagem(resource_path("src/assets/site/alerta_sem_consignado.png"), tentativas=3, confianca=0.7, deve_quebrar=False)
 
 def localizar_desmarcar_sem_guia_emitida():
     return localizar_imagem(resource_path("src/assets/site/desmarcar_sem_guia_emitida.png"), confianca=0.7, deve_quebrar=False)
@@ -508,20 +508,21 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             
             print("🔄 Atualizando a página (F5) para a próxima consulta...")
             pyautogui.press("f5")
-            esperar(3, check_stop_callback)
+            esperar(1, check_stop_callback)
             return False
 
     # Localiza gestão de guias
     print("📁 Localizando gestão de guias...")
     pos_gestao_guias = localizar_gestao_guias()
     pyautogui.click(pos_gestao_guias)
-    esperar(3, check_stop_callback)
+    esperar(2, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     # Guia parametrizada, mouse já está na posição certa, apenas clica
     print("📁 Clicando em guia parametrizada...")
     pyautogui.click(pos_gestao_guias)
     esperar(3, check_stop_callback)
+    pyautogui.click(pos_gestao_guias)
     verificar_parada(check_stop_callback)
     time.sleep(2)
 
@@ -549,7 +550,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             pos_btn_trocar_perfil = localizar_btn_trocar_perfil()
             if pos_btn_trocar_perfil:
                 pyautogui.click(pos_btn_trocar_perfil)
-                esperar(5, check_stop_callback)
+                esperar(3, check_stop_callback)
         
         return True
 
@@ -694,7 +695,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         if pos_btn_avancar:
             print(f"✅ Botão Avançar localizado na tentativa {scroll_count + 1}!")
             pyautogui.click(pos_btn_avancar)
-            esperar(2, check_stop_callback)
+            esperar(1, check_stop_callback)
             loop_avancar_encontrado = True
             break
         
@@ -793,7 +794,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             if pos_btn_avancar:
                 print(f"✅ Botão Avançar final localizado na tentativa {scroll_count + 1}!")
                 pyautogui.click(pos_btn_avancar)
-                esperar(3, check_stop_callback)
+                esperar(1, check_stop_callback)
                 loop_avancar_encontrado = True
                 break
             
@@ -818,7 +819,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     #clicando no botao avançar (Explícito como no código funcionando do usuário)
     pos_btn_avancar = localizar_btn_avancar()
     pyautogui.click(pos_btn_avancar)
-    esperar(3, check_stop_callback) 
+    esperar(2, check_stop_callback) 
 
     # logica de extração de dados
     print("📊 Iniciando extração de dados da tabela...")

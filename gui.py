@@ -42,6 +42,7 @@ class BotGUI:
         # Variáveis de controle globais
         self.caminho_excel = tk.StringVar()
         self.modo_consulta = tk.StringVar(value="lote") # 'lote' ou 'individual'
+        self.carteira_filtro = tk.StringVar(value="") # Filtro de carteira para modo lote/mysql
         self.cnpj_individual = tk.StringVar()
         self.nome_individual = tk.StringVar()
         self.codigo_individual = tk.StringVar()
@@ -133,8 +134,9 @@ class BotGUI:
             }
         }
         
-        # Adicionar modo atual
+        # Adicionar modo atual e filtro
         config["consulta_mode"] = self.modo_consulta.get()
+        config["carteira_filtro"] = self.carteira_filtro.get()
         
         try:
             with open(self.config_file, "w") as f:
@@ -173,6 +175,7 @@ class BotGUI:
 
                     # Carregar último modo usado se houver (opcional) ou manter padrão
                     self.modo_consulta.set(config.get("consulta_mode", "lote"))
+                    self.carteira_filtro.set(config.get("carteira_filtro", ""))
                     
                     mysql_config = config.get("mysql_config", {})
                     if mysql_config:
@@ -254,7 +257,8 @@ class BotGUI:
                     self.caminho_excel.get(),
                     servico["pasta"].get(),
                     tipo_consulta=servico["nome"],
-                    check_stop_callback=lambda: not self.is_running
+                    check_stop_callback=lambda: not self.is_running,
+                    carteira_filtro=self.carteira_filtro.get().strip()
                 )
             else:
                 executar_consulta_individual(
@@ -324,6 +328,65 @@ class BotGUI:
         if filename:
             self.caminho_excel.set(filename)
             self.log(f"📄 Arquivo selecionado: {os.path.basename(filename)}")
+
+    def carregar_carteiras(self):
+        modo = self.modo_consulta.get()
+        carteiras = set()
+        
+        try:
+            if modo == "mysql":
+                from src.utils.database_handler import DatabaseHandler
+                mysql_conf = {
+                    'host': self.db_host.get(),
+                    'port': int(self.db_port.get()) if self.db_port.get().isdigit() else 3306,
+                    'user': self.db_user.get(),
+                    'password': self.db_pass.get(),
+                    'database': self.db_name.get(),
+                    'use_pure': True
+                }
+                db = DatabaseHandler(mysql_conf)
+                empresas = db.obter_empresas_pendentes()
+                for e in empresas:
+                    c = e.get('carteira')
+                    if c and str(c).strip():
+                        carteiras.add(str(c).strip().upper())
+            elif modo == "lote":
+                import openpyxl
+                excel_path = self.caminho_excel.get()
+                if not excel_path or not os.path.exists(excel_path):
+                    messagebox.showwarning("Aviso", "Selecione o arquivo Excel primeiro.")
+                    return
+                wb = openpyxl.load_workbook(excel_path, data_only=True)
+                sheet = wb.active
+                headers = {}
+                for cell in sheet[1]:
+                    if cell.value:
+                        headers[str(cell.value).upper()] = cell.column - 1
+                col_carteira = headers.get("CARTEIRA")
+                if col_carteira is not None:
+                    for row in sheet.iter_rows(min_row=2, values_only=True):
+                        c = row[col_carteira]
+                        if c and str(c).strip():
+                            carteiras.add(str(c).strip().upper())
+            else:
+                messagebox.showinfo("Aviso", "O filtro de carteiras é válido apenas para Consulta em Lote ou MySQL.")
+                return
+
+            lista_carteiras = ["TODAS"] + sorted(list(carteiras))
+            self.combo_carteira['values'] = lista_carteiras
+            
+            # Se a carteira atual não estiver na lista ou estiver vazia, defina como 'TODAS'
+            atual = self.carteira_filtro.get().strip().upper()
+            if not atual or atual not in lista_carteiras:
+                self.combo_carteira.current(0)
+            else:
+                self.combo_carteira.set(atual)
+                
+            msg = f"Carteiras carregadas: {', '.join(lista_carteiras[1:])}" if len(lista_carteiras) > 1 else "Nenhuma carteira preenchida encontrada. Use 'TODAS'."
+            messagebox.showinfo("Sucesso", msg)
+            
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao carregar carteiras:\n{e}")
     
     def selecionar_pasta(self, key):
         foldername = filedialog.askdirectory(title=f"Selecione a pasta de destino para {self.servicos[key]['nome']}")
@@ -428,6 +491,19 @@ class BotGUI:
                        value="individual", command=self.toggle_modo_consulta).pack(side=tk.LEFT, padx=10)
         tk.Radiobutton(mode_frame, text="Banco de Dados (MySQL)", variable=self.modo_consulta, 
                        value="mysql", command=self.toggle_modo_consulta).pack(side=tk.LEFT, padx=10)
+
+        # Filtro por carteira
+        frame_carteira_filtro = tk.Frame(data_frame)
+        frame_carteira_filtro.pack(fill=tk.X, pady=(0, 5))
+        tk.Label(frame_carteira_filtro, text="Filtrar por Carteira (Opcional):").pack(side=tk.LEFT)
+        
+        # Substitui Entry por Combobox
+        self.combo_carteira = ttk.Combobox(frame_carteira_filtro, textvariable=self.carteira_filtro, width=15)
+        self.combo_carteira.pack(side=tk.LEFT, padx=5)
+        
+        # Adiciona botão para carregar as carteiras
+        self.btn_carregar_carteiras = ttk.Button(frame_carteira_filtro, text="Carregar Carteiras", command=self.carregar_carteiras)
+        self.btn_carregar_carteiras.pack(side=tk.LEFT, padx=5)
 
         # Container para Excel
         self.frame_excel = tk.Frame(data_frame)
@@ -735,7 +811,8 @@ class BotGUI:
                                 self.caminho_excel.get(),
                                 servico["pasta"].get(),
                                 tipo_consulta=servico["nome"],
-                                check_stop_callback=lambda: not self.is_running
+                                check_stop_callback=lambda: not self.is_running,
+                                carteira_filtro=self.carteira_filtro.get().strip()
                             )
                         elif self.modo_consulta.get() == "mysql":
                             # Passa o dicionário de configuração
@@ -751,7 +828,8 @@ class BotGUI:
                                 mysql_conf,
                                 servico["pasta"].get(),
                                 tipo_consulta=servico["nome"],
-                                check_stop_callback=lambda: not self.is_running
+                                check_stop_callback=lambda: not self.is_running,
+                                carteira_filtro=self.carteira_filtro.get().strip()
                             )
                         else:
                             executar_consulta_individual(

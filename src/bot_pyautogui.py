@@ -13,7 +13,7 @@ from src.utils.database_handler import DatabaseHandler
 #---------------------------
 # Função para consulta em lote (Orchestrator)
 #---------------------------
-def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta="Certidão SATE", check_stop_callback=None):
+def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta="Certidão SATE", check_stop_callback=None, carteira_filtro=""):
 
     #1: Leitura da fonte de dados (Excel ou MySQL)
     try:
@@ -32,6 +32,11 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
                 nome = item.get('razao', 'Empresa via DB')
                 codigo = item['codigo']
                 carteira = item.get('carteira', '')
+                
+                # Aplica o filtro de carteira se fornecido
+                if carteira_filtro and carteira_filtro.upper() != "TODAS":
+                    if str(carteira).strip().upper() != carteira_filtro.upper():
+                        continue
                 
                 # Para Onvio/FGTS, pegamos a competência do banco (competenciaInicial)
                 competencia = item.get('competenciaInicial', '')
@@ -83,6 +88,11 @@ def executar_consulta_em_lote(caminho_arquivo_xlsx, pasta_destino, tipo_consulta
                          carteira = str(carteira).strip()
                     else:
                          carteira = ""
+                    
+                    # Aplica o filtro de carteira se fornecido
+                    if carteira_filtro and carteira_filtro.upper() != "TODAS":
+                        if str(carteira).strip().upper() != carteira_filtro.upper():
+                            continue
                     
                     # Para Excel, o empresa_id e status são None (processa tudo), total_base e vencimento são 0/vazio, statusOnvio vazio
                     dados_empresas.append([str(cnpj), str(nome), str(codigo), carteira, str(competencia), None, None, 0.0, "", ""])
