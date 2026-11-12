@@ -82,7 +82,7 @@ def localizar_confirmar_sobreescrever():
     return localizar_imagem(resource_path("src/assets/arquivo/confirmar_sobreescrever.png"), confianca=0.7)
 
 def localizar_alerta_item_nao_encontrado():
-    return localizar_imagem(resource_path("src/assets/site/alerta_item_nao_encontrado.png"), tentativas=5, confianca=0.7, deve_quebrar=False)
+    return localizar_imagem(resource_path("src/assets/site/alerta_item_nao_encontrado.png"), tentativas=3, confianca=0.7, deve_quebrar=False)
 
 def localizar_alerta_sem_consignado():
     return localizar_imagem(resource_path("src/assets/site/alerta_sem_consignado.png"), tentativas=3, confianca=0.7, deve_quebrar=False)
@@ -97,8 +97,8 @@ def localizar_data_pagamento():
     # Usando vencimento como base ou fallback se não houver um binário específico
     return localizar_imagem(resource_path("src/assets/site/vencimento_debito.png"), confianca=0.7, deve_quebrar=False)
 
-def localizar_itens_consignado():
-    return localizar_imagem(resource_path("src/assets/site/itens_consignado.png"), confianca=0.7, deve_quebrar=False)
+def localizar_itens_consignado(deve_quebrar=True):
+    return localizar_imagem(resource_path("src/assets/site/itens_consignado.png"), confianca=0.7, deve_quebrar=deve_quebrar)
 
 def localizar_competencia_inicial_consignado():
     return localizar_imagem(resource_path("src/assets/site/competencia_inicial_consignado.png"), confianca=0.7, deve_quebrar=False)
@@ -110,7 +110,7 @@ def localizar_quadro_competencia():
     return localizar_imagem(resource_path("src/assets/site/quadro_competencia.png"), confianca=0.7, deve_quebrar=False)
 
 def localizar_nao_ha_debitos():
-    return localizar_imagem(resource_path("src/assets/site/nao_ha_debitos.png"),tentativas=5, confianca=0.7, deve_quebrar=False)
+    return localizar_imagem(resource_path("src/assets/site/nao_ha_debitos.png"),tentativas=4, confianca=0.7, deve_quebrar=False)
 
 def localizar_btn_ajuda():
     return localizar_imagem(resource_path("src/assets/site/btn_ajuda.png"), confianca=0.7, deve_quebrar=False)
@@ -125,7 +125,7 @@ def localizar_vencimento_debito():
     return localizar_imagem(resource_path("src/assets/site/vencimento_debito.png"), confianca=0.7, deve_quebrar=False)
 
 def localizar_sem_procuracao():
-    return localizar_imagem(resource_path("src/assets/site/sem_procuracao.png"), confianca=0.7, deve_quebrar=False)
+    return localizar_imagem(resource_path("src/assets/site/sem_procuracao.png"), tentativas=3, confianca=0.7, deve_quebrar=False)
 
 def extrair_dados_tabela_detalhada(check_stop_callback=None, alerta_ativo=False):
     """
@@ -403,7 +403,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         print("🔑 Localizando botão Entrar com gov.br...")
         pos_btn_entar_gov = localizar_btn_entrar_gov()
         pyautogui.click(pos_btn_entar_gov)
-        esperar(5, check_stop_callback)
+        esperar(6, check_stop_callback)
         verificar_parada(check_stop_callback)
 
         # Localiza o botão de login com certificado digital
@@ -411,7 +411,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         pos_entrar_certificado = localizar_btn_entrar_certificado()
         pyautogui.click(pos_entrar_certificado)
         
-        esperar(15, check_stop_callback)
+        esperar(10, check_stop_callback)
         verificar_parada(check_stop_callback)
 
         print("📝 Digitando o certificado digital...")
@@ -447,7 +447,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             # Localiza e clica no botão definir para prosseguir
             pos_btn_definir = localizar_btn_definir()
             pyautogui.click(pos_btn_definir)
-            esperar(5, check_stop_callback)
+            esperar(3, check_stop_callback)
             verificar_parada(check_stop_callback)
 
             #   Verifica se tem sem procuração
@@ -495,7 +495,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
         # Localiza e clica no botão definir para prosseguir
         pos_btn_definir = localizar_btn_definir()
         pyautogui.click(pos_btn_definir)
-        esperar(3, check_stop_callback)
+        esperar(2, check_stop_callback)
         verificar_parada(check_stop_callback)
 
         #   Verifica se tem sem procuração
@@ -521,7 +521,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     # Guia parametrizada, mouse já está na posição certa, apenas clica
     print("📁 Clicando em guia parametrizada...")
     pyautogui.click(pos_gestao_guias)
-    esperar(3, check_stop_callback)
+    esperar(2, check_stop_callback)
     pyautogui.click(pos_gestao_guias)
     verificar_parada(check_stop_callback)
     time.sleep(2)
@@ -558,7 +558,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     # Rolar scroll para baixo
     print("📁 Rolar scroll para baixo...")
     pyautogui.scroll(-600)
-    esperar(3, check_stop_callback)
+    esperar(2, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     pos_btn_ajuda = localizar_btn_ajuda()
@@ -571,9 +571,9 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     competencia_in = competencia
     competencia_fi = competencia
     
-    if competencia == "12/2025":
-        print("📅 Detectada competência 12/2025. Expandindo pesquisa para incluir 13º/2025.")
-        competencia_fi = "13º/2025" # No site, usamos 13º/2025
+    if competencia == "12/2026":
+        print("📅 Detectada competência 12/2026. Expandindo pesquisa para incluir 13º/2026.")
+        competencia_fi = "13º/2026" # No site, usamos 13º/2026
     
     # Localizado somente como base para o clique nas caixas de competencia
     pos_vencimento_debito = localizar_vencimento_debito()
@@ -652,7 +652,7 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
     # localizar botão pesquisar
     pos_btn_pesquisar = localizar_btn_pesquisar()
     pyautogui.click(pos_btn_pesquisar[0] + 200, pos_btn_pesquisar[1])
-    esperar(3, check_stop_callback)
+    esperar(1, check_stop_callback)
     verificar_parada(check_stop_callback)
 
     # Localizar alerta de item nao encontrado
@@ -775,15 +775,15 @@ def consultar_fgts_digital_site(empresa_id, db_config, pasta_destino, abrir_nave
             esperar(3, check_stop_callback)
 
 
-        pos_itens_consignado = localizar_itens_consignado()
+        pos_itens_consignado = localizar_itens_consignado(deve_quebrar=False)
         if pos_itens_consignado:
             pyautogui.click(pos_itens_consignado[0] - 810, pos_itens_consignado[1] - 5)
             esperar(1, check_stop_callback)
 
-        pos_btn_adicionar_a_guia = localizar_adicionar_a_guia()
-        if pos_btn_adicionar_a_guia:
-            pyautogui.click(pos_btn_adicionar_a_guia)
-            esperar(2, check_stop_callback)
+            pos_btn_adicionar_a_guia = localizar_adicionar_a_guia()
+            if pos_btn_adicionar_a_guia:
+                pyautogui.click(pos_btn_adicionar_a_guia)
+                esperar(2, check_stop_callback)
 
 
         # 3. Localizar botão avançar final (após adicionar consignados)

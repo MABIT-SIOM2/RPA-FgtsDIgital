@@ -12,6 +12,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local configuration and test data
+config_multi.json
+pasta_teste/
+
 # Logs
 logs/
 *.log
@@ -22,6 +26,8 @@ logs/
 
 # Build and Dist
 dist/
+dist_corrigido/
 build/
 *.spec
+!FgtsDigital.spec
 *.zip
